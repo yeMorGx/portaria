@@ -1,28 +1,30 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/public-sans';
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --color-ink: #14181f;
-  --color-muted: #5b6472;
-  --color-line: #e3e6ec;
-  --color-paper: #f6f7f9;
+  --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-ink: #121816;
+  --color-muted: #55605b;
+  --color-line: #dde3df;
+  --color-paper: #f4f6f4;
   --color-card: #ffffff;
-  --color-brand: #0f5c4d;
-  --color-brand-strong: #0a4438;
-  --color-brand-soft: #e3f1ed;
+  --color-brand: #0d5a4a;
+  --color-brand-strong: #08443a;
+  --color-brand-soft: #e1f0ea;
   --color-danger: #b42318;
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: #eef1f5;
-    --color-muted: #9aa3b2;
-    --color-line: #2a313c;
-    --color-paper: #0e1116;
-    --color-card: #171b22;
+    --color-ink: #edf2ef;
+    --color-muted: #9fada6;
+    --color-line: #27312d;
+    --color-paper: #0d1210;
+    --color-card: #151c19;
     --color-brand: #4cc2a8;
     --color-brand-strong: #7fdcc6;
-    --color-brand-soft: #14312b;
+    --color-brand-soft: #12302a;
     --color-danger: #ff8a80;
   }
 }
@@ -39,11 +41,74 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  caret-color: var(--color-brand);
+  scrollbar-color: var(--color-line) transparent;
+}
+
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+label:focus-within {
   outline: 3px solid var(--color-brand);
   outline-offset: 2px;
+}
+
+input,
+select {
+  transition: border-color 0.15s;
+}
+input:hover,
+select:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 55%, var(--color-line));
+}
+
+/* Momento principal: varredura de leitura sobre a foto da etiqueta. */
+@keyframes varredura {
+  from {
+    transform: translateY(-10%);
+  }
+  to {
+    transform: translateY(110%);
+  }
+}
+.varredura {
+  animation: varredura 1.6s var(--ease-saida) infinite alternate;
+}
+
+/* Linha recém-salva destaca e se acomoda. */
+@keyframes recem {
+  from {
+    background: var(--color-brand-soft);
+    transform: translateY(-6px);
+    opacity: 0.4;
+  }
+  to {
+    background: transparent;
+    transform: none;
+    opacity: 1;
+  }
+}
+.recem {
+  animation: recem 0.9s var(--ease-saida);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .varredura,
+  .recem {
+    animation: none;
+  }
 }

@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { dados, type Encomenda } from '../lib/data'
 import type { Morador } from '../lib/parser'
-import { Aviso, Botao, Cabecalho } from './ui'
+import { IconeCamera, IconeCodigo, IconeMais, IconeSair } from './icons'
+import { Aviso, Botao, Cabecalho, EstadoVazio, Marca } from './ui'
+
+const campo = 'min-h-12 w-full rounded-xl border border-line bg-card px-4 text-lg'
 
 export function Login({ aoEntrar }: { aoEntrar: () => void }) {
   const [email, setEmail] = useState('')
@@ -11,8 +14,9 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 className="mb-2 text-3xl font-bold tracking-tight">Portaria</h1>
-      <p className="mb-8 text-muted">Entre com a conta da portaria para registrar encomendas.</p>
+      <Marca />
+      <h1 className="mt-10 text-3xl font-bold tracking-tight">Entrar na portaria</h1>
+      <p className="mt-2 mb-8 text-muted">Use a conta da portaria para registrar encomendas.</p>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
@@ -37,7 +41,7 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="E-mail"
           aria-label="E-mail"
-          className="min-h-12 w-full rounded-xl border border-line bg-card px-4"
+          className={campo}
         />
         <input
           type="password"
@@ -47,7 +51,7 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
           onChange={(e) => setSenha(e.target.value)}
           placeholder="Senha"
           aria-label="Senha"
-          className="min-h-12 w-full rounded-xl border border-line bg-card px-4"
+          className={campo}
         />
         {erro && <Aviso>{erro}</Aviso>}
         <Botao type="submit" disabled={enviando} className="w-full">
@@ -58,63 +62,96 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
   )
 }
 
-const formatador = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
+const diaCompleto = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+function rotuloDia(d: Date): string {
+  const hoje = new Date()
+  const ontem = new Date()
+  ontem.setDate(hoje.getDate() - 1)
+  if (d.toDateString() === hoje.toDateString()) return 'Hoje'
+  if (d.toDateString() === ontem.toDateString()) return 'Ontem'
+  return diaCompleto.format(d)
+}
+
+function agruparPorDia(itens: Encomenda[]): Array<{ dia: string; itens: Encomenda[] }> {
+  const grupos: Array<{ dia: string; itens: Encomenda[] }> = []
+  for (const e of itens) {
+    const dia = rotuloDia(new Date(e.recebido_em))
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo?.dia === dia) ultimo.itens.push(e)
+    else grupos.push({ dia, itens: [e] })
+  }
+  return grupos
+}
 
 export function Inicio({
   encomendas,
   erro,
+  novoId,
   aoNova,
   aoSair,
 }: {
   encomendas: Encomenda[] | null
   erro: string | null
+  novoId: string | null
   aoNova: () => void
   aoSair?: () => void
 }) {
+  const grupos = useMemo(() => agruparPorDia(encomendas ?? []), [encomendas])
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <Cabecalho
-        titulo="Encomendas"
-        direita={
-          aoSair && (
-            <Botao variante="fantasma" onClick={aoSair}>
-              Sair
-            </Botao>
-          )
-        }
-      />
-      <Botao grande onClick={aoNova} className="mb-10 w-full sm:w-auto">
-        + Nova Encomenda
+    <main className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mb-10 flex items-center justify-between">
+        <Marca />
+        {aoSair && (
+          <Botao variante="fantasma" onClick={aoSair} className="!min-h-11 !gap-2 !px-3">
+            <IconeSair className="size-5" />
+            Sair
+          </Botao>
+        )}
+      </div>
+      <Botao grande onClick={aoNova} className="mb-12 w-full">
+        <IconeMais className="size-7" />
+        Nova Encomenda
       </Botao>
+      <h1 className="mb-4 text-2xl font-bold tracking-tight">Encomendas</h1>
       {erro && <Aviso>{erro}</Aviso>}
       {encomendas === null && !erro && <p className="text-muted">Carregando…</p>}
-      {encomendas?.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">
-          Nenhuma encomenda registrada ainda.
-        </p>
-      )}
-      {!!encomendas?.length && (
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card" data-testid="lista">
-          {encomendas.map((e) => (
-            <li key={e.id} className="flex items-center gap-4 px-5 py-4">
-              {e.foto_url ? (
-                <img src={e.foto_url} alt="" className="size-14 rounded-lg object-cover" />
-              ) : (
-                <div className="size-14 rounded-lg bg-brand-soft" aria-hidden />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-lg font-semibold">{e.destinatario_nome}</p>
-                <p className="text-muted">
-                  Apto {e.apartamento}
-                  {e.transportadora ? ` · ${e.transportadora}` : ''}
-                </p>
-              </div>
-              <time className="shrink-0 text-sm text-muted" dateTime={e.recebido_em}>
-                {formatador.format(new Date(e.recebido_em))}
-              </time>
-            </li>
+      {encomendas?.length === 0 && <EstadoVazio />}
+      {!!grupos.length && (
+        <div className="space-y-8" data-testid="lista">
+          {grupos.map((g) => (
+            <section key={g.dia} aria-label={g.dia}>
+              <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted capitalize">
+                {g.dia} <span className="num font-normal">· {g.itens.length}</span>
+              </h2>
+              <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
+                {g.itens.map((e) => (
+                  <li key={e.id} className={`flex items-center gap-4 px-5 py-4 ${e.id === novoId ? 'recem' : ''}`}>
+                    {e.foto_url ? (
+                      <img src={e.foto_url} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <div className="grid size-14 shrink-0 place-items-center rounded-lg bg-brand-soft text-xl text-brand" aria-hidden>
+                        <IconeCodigo />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-lg font-semibold leading-snug">{e.destinatario_nome}</p>
+                      <p className="text-muted">
+                        Apto <span className="num font-semibold text-ink">{e.apartamento}</span>
+                        {e.transportadora ? ` · ${e.transportadora}` : ''}
+                      </p>
+                    </div>
+                    <time className="num shrink-0 text-base text-muted" dateTime={e.recebido_em}>
+                      {hora.format(new Date(e.recebido_em))}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </main>
   )
@@ -130,29 +167,24 @@ export function Escolha({
   aoVoltar: () => void
 }) {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="mx-auto max-w-3xl px-6 py-8">
       <Cabecalho titulo="Nova Encomenda" voltar={aoVoltar} />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <button
-          onClick={aoFoto}
-          className="cursor-pointer rounded-2xl border border-line bg-card p-8 text-left transition hover:border-brand hover:shadow-lg"
-        >
-          <span className="text-4xl" aria-hidden>
-            📷
+      <p className="mb-6 text-lg text-muted">Como você quer registrar este pacote?</p>
+      <div className="space-y-4">
+        <Botao grande onClick={aoFoto} className="!min-h-28 w-full !justify-start !px-8 text-left">
+          <IconeCamera className="size-10 shrink-0" />
+          <span>
+            <span className="block text-2xl">Fotografar etiqueta</span>
+            <span className="block text-base font-normal opacity-85">Lê nome, apartamento e transportadora.</span>
           </span>
-          <span className="mt-4 block text-2xl font-bold">Fotografar etiqueta</span>
-          <span className="mt-1 block text-muted">Lê nome, apartamento e transportadora da foto.</span>
-        </button>
-        <button
-          onClick={aoCodigo}
-          className="cursor-pointer rounded-2xl border border-line bg-card p-8 text-left transition hover:border-brand hover:shadow-lg"
-        >
-          <span className="text-4xl" aria-hidden>
-            ▦
+        </Botao>
+        <Botao variante="secundario" onClick={aoCodigo} className="!min-h-20 w-full !justify-start !px-8 text-left text-lg">
+          <IconeCodigo className="size-8 shrink-0 text-brand" />
+          <span>
+            <span className="block text-xl">Escanear código</span>
+            <span className="block text-base font-normal text-muted">Código de barras ou QR Code.</span>
           </span>
-          <span className="mt-4 block text-2xl font-bold">Escanear código</span>
-          <span className="mt-1 block text-muted">Código de barras ou QR Code da etiqueta.</span>
-        </button>
+        </Botao>
       </div>
     </main>
   )
@@ -200,27 +232,35 @@ export function Conferencia({
   const identificado = !!rascunho.morador
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="mx-auto max-w-4xl px-6 py-8">
       <Cabecalho titulo="Conferir encomenda" voltar={aoCancelar} />
-      <div className="grid gap-8 sm:grid-cols-[1fr_1.2fr]">
+      <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
         {rascunho.fotoUrl ? (
-          <img src={rascunho.fotoUrl} alt="Foto da etiqueta" className="w-full rounded-2xl border border-line object-contain" />
+          <img
+            src={rascunho.fotoUrl}
+            alt="Foto da etiqueta"
+            className="max-h-[28rem] w-full rounded-2xl border border-line bg-card object-contain"
+          />
         ) : (
           <div className="rounded-2xl border border-dashed border-line p-6 text-muted">
             Sem foto.
             {rascunho.codigo && (
               <p className="mt-2 break-all text-sm">
-                Código lido: <code>{rascunho.codigo}</code>
+                Código lido: <code className="num">{rascunho.codigo}</code>
               </p>
             )}
           </div>
         )}
         <div className="space-y-5">
-          {!identificado && (
-            <p className="rounded-lg bg-brand-soft px-4 py-3 text-sm">
-              Não foi possível identificar o morador. Selecione na lista abaixo.
-            </p>
-          )}
+          <p
+            className={`rounded-lg px-4 py-3 text-sm ring-1 ${
+              identificado ? 'bg-brand-soft text-brand-strong ring-brand/25' : 'bg-card text-ink ring-line'
+            }`}
+          >
+            {identificado
+              ? 'Morador identificado. Confira e salve.'
+              : 'Não foi possível identificar o morador. Selecione na lista abaixo.'}
+          </p>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-muted">Morador</span>
             <input
@@ -228,13 +268,13 @@ export function Conferencia({
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome ou apartamento"
               aria-label="Buscar morador"
-              className="mb-2 min-h-11 w-full rounded-xl border border-line bg-card px-4"
+              className={`${campo} mb-2 !min-h-11 !text-base`}
             />
             <select
               value={moradorId}
               onChange={(e) => setMoradorId(e.target.value)}
               aria-label="Morador"
-              className="min-h-12 w-full rounded-xl border border-line bg-card px-4 text-lg"
+              className={campo}
             >
               <option value="">Selecione…</option>
               {filtrados.map((m) => (
@@ -246,7 +286,7 @@ export function Conferencia({
           </label>
           <div>
             <span className="mb-1 block text-sm font-semibold text-muted">Apartamento</span>
-            <p className="min-h-12 rounded-xl bg-brand-soft px-4 py-3 text-lg font-semibold" data-testid="apto">
+            <p className="num min-h-12 rounded-xl bg-brand-soft px-4 py-3 text-lg font-semibold" data-testid="apto">
               {morador?.apartamento ?? '—'}
             </p>
           </div>
@@ -256,7 +296,7 @@ export function Conferencia({
               value={transportadora}
               onChange={(e) => setTransportadora(e.target.value)}
               placeholder="Opcional"
-              className="min-h-12 w-full rounded-xl border border-line bg-card px-4 text-lg"
+              className={campo}
             />
           </label>
           {erro && <Aviso>{erro}</Aviso>}

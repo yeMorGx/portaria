@@ -6,6 +6,18 @@ import { dados, type Encomenda } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
 
+function Lendo({ previa }: { previa: string | null }) {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 px-6" role="status">
+      <div className="relative w-full overflow-hidden rounded-2xl border border-line bg-card">
+        {previa && <img src={previa} alt="" className="max-h-80 w-full object-contain" />}
+        <div className="varredura absolute inset-x-0 top-0 h-1 bg-brand shadow-[0_0_24px_4px_var(--color-brand)]" />
+      </div>
+      <p className="text-xl font-semibold">Lendo a etiqueta…</p>
+    </main>
+  )
+}
+
 type Tela = 'carregando' | 'login' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir'
 
 export default function App() {
@@ -15,6 +27,8 @@ export default function App() {
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
+  const [novoId, setNovoId] = useState<string | null>(null)
+  const [previa, setPrevia] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     try {
@@ -50,6 +64,7 @@ export default function App() {
   }
 
   async function processarFoto(original: Blob) {
+    setPrevia(URL.createObjectURL(original))
     setTela('lendo')
     setErro(null)
     const foto = await reduzirImagem(original).catch(() => original)
@@ -81,7 +96,7 @@ export default function App() {
     setSalvando(true)
     setErro(null)
     try {
-      await dados.salvarEncomenda({
+      const salva = await dados.salvarEncomenda({
         morador_id: r.morador?.id ?? null,
         destinatario_nome: r.nome,
         apartamento: r.apartamento,
@@ -90,6 +105,7 @@ export default function App() {
         foto: r.foto,
       })
       await carregar()
+      setNovoId(salva.id)
       setRascunho(null)
       setTela('inicio')
     } catch {
@@ -116,6 +132,7 @@ export default function App() {
         <Inicio
           encomendas={encomendas}
           erro={erro}
+          novoId={novoId}
           aoNova={() => setTela('escolha')}
           aoSair={
             dados.precisaLogin
@@ -145,9 +162,7 @@ export default function App() {
       )
     case 'lendo':
       return (
-        <main className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6" role="status">
-          <p className="text-xl text-muted">Lendo a etiqueta…</p>
-        </main>
+        <Lendo previa={previa} />
       )
     case 'conferir':
       return rascunho ? (

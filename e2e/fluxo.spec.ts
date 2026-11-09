@@ -20,9 +20,9 @@ async function etiqueta(page: import('@playwright/test').Page, linhas: string[])
 test('registra encomenda por foto da etiqueta (modo demonstração)', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Encomendas' })).toBeVisible()
-  await expect(page.getByText('Nenhuma encomenda registrada ainda.')).toBeVisible()
+  await expect(page.getByText('Nenhuma encomenda registrada ainda')).toBeVisible()
 
-  await page.getByRole('button', { name: '+ Nova Encomenda' }).click()
+  await page.getByRole('button', { name: 'Nova Encomenda' }).click()
   await page.getByRole('button', { name: /Fotografar etiqueta/ }).click()
 
   const png = await etiqueta(page, ['CORREIOS SEDEX', 'Maria Fernanda Oliveira', 'APTO 202'])
@@ -42,7 +42,7 @@ test('registra encomenda por foto da etiqueta (modo demonstração)', async ({ p
 
 test('permite seleção manual quando o morador não é identificado', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '+ Nova Encomenda' }).click()
+  await page.getByRole('button', { name: 'Nova Encomenda' }).click()
   await page.getByRole('button', { name: /Escanear código/ }).click()
   await page.getByLabel('Código digitado').fill('XYZ123456BR')
   await page.getByRole('button', { name: 'Usar código' }).click()

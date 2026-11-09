@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
+import { IconeCamera, IconeEnviar } from './icons'
 import { Botao, Aviso } from './ui'
 
 async function abrirCamera(video: HTMLVideoElement): Promise<MediaStream> {
@@ -58,9 +59,11 @@ export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }
       />
       <div className="flex flex-wrap gap-3">
         <Botao grande onClick={fotografar} disabled={!pronta}>
+          <IconeCamera className="size-7" />
           Fotografar etiqueta
         </Botao>
         <label className="inline-flex min-h-16 cursor-pointer items-center rounded-xl border border-line bg-card px-8 text-xl font-semibold hover:border-brand">
+          <IconeEnviar className="mr-3 size-6" />
           Enviar arquivo
           <input
             type="file"

@@ -5,14 +5,14 @@ export default defineConfig({
   timeout: 120_000,
   use: {
     ignoreHTTPSErrors: true,
-    baseURL: 'https://localhost:4173',
+    baseURL: 'https://localhost:4401',
     channel: 'msedge',
     permissions: ['camera'],
     launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
   },
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173',
-    url: 'https://localhost:4173',
+    command: 'npm run build && npm run preview -- --port 4401',
+    url: 'https://localhost:4401',
     reuseExistingServer: true,
     ignoreHTTPSErrors: true,
     timeout: 180_000,
