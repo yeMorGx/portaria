@@ -1,32 +1,72 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/public-sans';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 
-@theme {
-  --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --color-ink: #121816;
-  --color-muted: #55605b;
-  --color-line: #dde3df;
-  --color-paper: #f4f6f4;
-  --color-card: #ffffff;
-  --color-brand: #0d5a4a;
-  --color-brand-strong: #08443a;
-  --color-brand-soft: #e1f0ea;
-  --color-danger: #b42318;
+/* Tokens do DESIGN.md. Mobile-first: estilos base para 390 px, ampliados com md: e lg:. */
+:root {
+  --bg: #f4f4f0;
+  --surface-1: #ffffff;
+  --surface-2: #eeeef4;
+  --surface-3: #e3e4ee;
+  --text: #15152b;
+  --text-2: #575772;
+  --border: rgb(21 21 43 / 0.1);
+  --accent: #4338ca;
+  --accent-strong: #3730a3;
+  --accent-soft: #e7e6fa;
+  --on-accent: #ffffff;
+  --success: #137a4b;
+  --warning: #8f5a00;
+  --danger: #b42318;
+  --shadow-overlay: 0 8px 24px -8px rgb(21 21 43 / 0.18), 0 1px 2px rgb(21 21 43 / 0.08);
+  --shadow-primary: 0 1px 2px rgb(21 21 43 / 0.2), 0 8px 16px -8px rgb(67 56 202 / 0.6);
   --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-tela: cubic-bezier(0.4, 0, 0.2, 1);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: #edf2ef;
-    --color-muted: #9fada6;
-    --color-line: #27312d;
-    --color-paper: #0d1210;
-    --color-card: #151c19;
-    --color-brand: #4cc2a8;
-    --color-brand-strong: #7fdcc6;
-    --color-brand-soft: #12302a;
-    --color-danger: #ff8a80;
+    --bg: #0c0c14;
+    --surface-1: #14141f;
+    --surface-2: #1c1c2a;
+    --surface-3: #262637;
+    --text: #eeeef6;
+    --text-2: #a2a2bc;
+    --border: rgb(238 238 246 / 0.1);
+    --accent: #8b84f5;
+    --accent-strong: #a8a2f8;
+    --accent-soft: #23214a;
+    --on-accent: #0c0c1f;
+    --success: #4fd08f;
+    --warning: #f0b45a;
+    --danger: #ff8a80;
+    --shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-primary: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 16px -8px rgb(139 132 245 / 0.5);
+    color-scheme: dark;
   }
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --color-bg: var(--bg);
+  --color-s1: var(--surface-1);
+  --color-s2: var(--surface-2);
+  --color-s3: var(--surface-3);
+  --color-ink: var(--text);
+  --color-muted: var(--text-2);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--success);
+  --color-warn: var(--warning);
+  --color-danger: var(--danger);
+  --radius-campo: 8px;
+  --radius-botao: 12px;
+  --radius-tile: 20px;
 }
 
 html,
@@ -37,46 +77,86 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
   -webkit-font-smoothing: antialiased;
-  caret-color: var(--color-brand);
-  scrollbar-color: var(--color-line) transparent;
+  caret-color: var(--accent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
 }
 
 ::selection {
-  background: var(--color-brand);
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
-h1,
-h2 {
-  text-wrap: balance;
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
 }
 
 .num {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-label:focus-within {
-  outline: 3px solid var(--color-brand);
-  outline-offset: 2px;
+.rotulo {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 
-input,
-select {
-  transition: border-color 0.15s;
-}
-input:hover,
-select:hover {
-  border-color: color-mix(in srgb, var(--color-brand) 55%, var(--color-line));
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
-/* Momento principal: varredura de leitura sobre a foto da etiqueta. */
+/* Tile do bento: superfície 1, borda de 1 px, sem sombra. */
+.tile {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+}
+
+/* Marcas "+" nos cantos (referência: DeepBook). */
+.cantos::before,
+.cantos::after {
+  content: '+';
+  position: absolute;
+  top: 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 14px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.cantos::before {
+  left: 14px;
+}
+.cantos::after {
+  right: 14px;
+}
+
+/* Varredura de leitura da etiqueta. */
 @keyframes varredura {
   from {
     transform: translateY(-10%);
@@ -89,26 +169,39 @@ select:hover {
   animation: varredura 1.6s var(--ease-saida) infinite alternate;
 }
 
-/* Linha recém-salva destaca e se acomoda. */
-@keyframes recem {
+/* Esqueleto de carregamento. */
+@keyframes brilho {
   from {
-    background: var(--color-brand-soft);
-    transform: translateY(-6px);
-    opacity: 0.4;
+    background-position: 200% 0;
   }
   to {
-    background: transparent;
-    transform: none;
-    opacity: 1;
+    background-position: -200% 0;
   }
 }
-.recem {
-  animation: recem 0.9s var(--ease-saida);
+.esqueleto {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: brilho 1.6s linear infinite;
+  border-radius: 8px;
+}
+
+/* Contorno que pulsa uma vez quando o morador é identificado. */
+@keyframes pulso {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+.pulso {
+  animation: pulso 0.9s var(--ease-saida) 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .varredura,
-  .recem {
+  .esqueleto,
+  .pulso {
     animation: none;
   }
 }

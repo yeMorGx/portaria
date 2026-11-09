@@ -27,3 +27,6 @@ dist-ssr
 playwright-report
 test-results
 .claude/skills
+.design/refs
+.design/screens
+.design/dist-login

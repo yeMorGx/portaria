@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
-import { IconeCamera, IconeEnviar } from './icons'
-import { Botao, Aviso } from './ui'
+import { Camera as IconeCamera, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Aviso, Botao } from './ui'
 
 async function abrirCamera(video: HTMLVideoElement): Promise<MediaStream> {
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -11,6 +11,18 @@ async function abrirCamera(video: HTMLVideoElement): Promise<MediaStream> {
   video.srcObject = stream
   await video.play()
   return stream
+}
+
+/** Moldura da câmera com marcas "+" nos cantos e linha guia central. */
+function Moldura({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="tile cantos overflow-hidden !border-0 bg-black">
+      <div className="relative aspect-[4/3] bg-black md:aspect-video">
+        {children}
+        <div aria-hidden className="pointer-events-none absolute inset-x-[12%] top-1/2 h-px bg-white/40" />
+      </div>
+    </div>
+  )
 }
 
 /** Câmera para fotografar a etiqueta. Também aceita enviar um arquivo de imagem. */
@@ -50,20 +62,22 @@ export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }
   return (
     <div className="space-y-4">
       {erro && <Aviso>{erro}</Aviso>}
-      <video
-        ref={videoRef}
-        muted
-        playsInline
-        className="aspect-video w-full rounded-2xl bg-black object-cover"
-        data-testid="video-foto"
-      />
-      <div className="flex flex-wrap gap-3">
-        <Botao grande onClick={fotografar} disabled={!pronta}>
-          <IconeCamera className="size-7" />
+      <Moldura>
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className="absolute inset-0 size-full object-cover"
+          data-testid="video-foto"
+        />
+      </Moldura>
+      <div className="flex flex-col gap-3 md:flex-row">
+        <Botao grande onClick={fotografar} disabled={!pronta} className="md:flex-1">
+          <IconeCamera className="size-6" strokeWidth={1.75} />
           Fotografar etiqueta
         </Botao>
-        <label className="inline-flex min-h-16 cursor-pointer items-center rounded-xl border border-line bg-card px-8 text-xl font-semibold hover:border-brand">
-          <IconeEnviar className="mr-3 size-6" />
+        <label className="inline-flex min-h-16 cursor-pointer items-center justify-center gap-3 rounded-botao border border-line bg-s1 px-6 text-lg font-semibold transition duration-[120ms] hover:bg-s2 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-accent md:px-8">
+          <Upload className="size-6" strokeWidth={1.75} />
           Enviar arquivo
           <input
             type="file"
@@ -111,10 +125,12 @@ export function LeitorCodigo({ aoLer }: { aoLer: (texto: string) => void }) {
   return (
     <div className="space-y-4">
       {erro && <Aviso>{erro}</Aviso>}
-      <video ref={videoRef} muted playsInline className="aspect-video w-full rounded-2xl bg-black object-cover" />
-      <p className="text-muted">Aponte o código de barras ou QR Code da etiqueta para a câmera.</p>
+      <Moldura>
+        <video ref={videoRef} muted playsInline className="absolute inset-0 size-full object-cover" />
+      </Moldura>
+      <p className="m-0 text-muted">Aponte o código de barras ou QR Code da etiqueta para a câmera.</p>
       <form
-        className="flex gap-3"
+        className="flex flex-col gap-3 md:flex-row"
         onSubmit={(e) => {
           e.preventDefault()
           if (manual.trim()) aoLer(manual.trim())
@@ -125,7 +141,7 @@ export function LeitorCodigo({ aoLer }: { aoLer: (texto: string) => void }) {
           onChange={(e) => setManual(e.target.value)}
           placeholder="Ou digite o código"
           aria-label="Código digitado"
-          className="min-h-12 flex-1 rounded-xl border border-line bg-card px-4"
+          className="min-h-12 flex-1 rounded-botao border border-line bg-s1 px-4 text-base"
         />
         <Botao variante="secundario" type="submit">
           Usar código

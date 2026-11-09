@@ -29,9 +29,9 @@ test('registra encomenda por foto da etiqueta (modo demonstração)', async ({ p
   await page.getByTestId('arquivo-foto').setInputFiles({ name: 'etiqueta.png', mimeType: 'image/png', buffer: png })
 
   await expect(page.getByRole('heading', { name: 'Conferir encomenda' })).toBeVisible({ timeout: 90_000 })
-  await expect(page.getByLabel('Morador', { exact: true })).toHaveValue('2')
+  await expect(page.getByRole('combobox', { name: 'Morador' })).toContainText('Maria Fernanda Oliveira')
   await expect(page.getByTestId('apto')).toHaveText('202')
-  await expect(page.getByPlaceholder('Opcional')).toHaveValue('Correios')
+  await expect(page.getByRole('radio', { name: 'Correios' })).toBeChecked()
 
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
   const lista = page.getByTestId('lista')
@@ -49,7 +49,8 @@ test('permite seleção manual quando o morador não é identificado', async ({ 
 
   await expect(page.getByText('Não foi possível identificar o morador')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Salvar Encomenda' })).toBeDisabled()
-  await page.getByLabel('Morador', { exact: true }).selectOption({ label: 'José Almeida — Apto 404' })
+  await page.getByRole('combobox', { name: 'Morador' }).click()
+  await page.getByRole('option', { name: /José Almeida/ }).click()
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
   await expect(page.getByTestId('lista')).toContainText('José Almeida')
 })

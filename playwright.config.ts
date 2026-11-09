@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: 'e2e',
+  testIgnore: process.env.CAPTURAS ? [] : ['**/capturas.spec.ts'],
   timeout: 120_000,
   use: {
     ignoreHTTPSErrors: true,
