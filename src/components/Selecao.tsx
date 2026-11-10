@@ -1,9 +1,11 @@
 import * as Popover from '@radix-ui/react-popover'
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { Command } from 'cmdk'
-import { Check, ChevronsUpDown, Search } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronsUpDown, Minus, Plus, Search } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { LOJAS, TRANSPORTADORAS, type TipoMarca } from '../lib/marcas'
 import type { Morador } from '../lib/parser'
+import { LogoMarca } from './Logo'
 
 /** Combobox de morador: busca por nome ou apartamento, teclado e leitor de tela (Radix Popover + cmdk). */
 export function SeletorMorador({
@@ -70,7 +72,9 @@ export function SeletorMorador({
                     />
                     <span className="truncate">{m.nome}</span>
                   </span>
-                  <span className="num shrink-0 text-sm text-muted">Apto {m.apartamento}</span>
+                  <span className="num shrink-0 text-sm text-muted">
+                    {m.bloco ? `${m.bloco} · ` : ''}Apto {m.apartamento}
+                  </span>
                 </Command.Item>
               ))}
             </Command.List>
@@ -81,26 +85,37 @@ export function SeletorMorador({
   )
 }
 
-const TRANSPORTADORAS = ['Correios', 'Mercado Livre', 'Amazon', 'Shopee', 'Jadlog', 'Loggi']
+const chipBase =
+  'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-line bg-s2 pr-4 pl-2 text-sm font-medium transition duration-[120ms] hover:bg-s3 data-[state=on]:border-accent data-[state=on]:bg-accent-soft data-[state=on]:text-ink data-[state=on]:ring-1 data-[state=on]:ring-accent'
 
-/** Chips das transportadoras mais comuns, mais "Outra" com campo de texto. */
-export function SeletorTransportadora({
+/**
+ * Chips de marcas com logo (lojas ou transportadoras), mais "Outra" com campo de texto.
+ * Mostra as 8 primeiras e, se a marca escolhida estiver fora delas, também ela.
+ */
+export function SeletorMarca({
+  tipo,
   valor,
   aoMudar,
+  rotulo,
 }: {
+  tipo: TipoMarca
   valor: string
   aoMudar: (v: string) => void
+  rotulo: string
 }) {
-  const conhecida = TRANSPORTADORAS.includes(valor)
+  const todas = tipo === 'loja' ? LOJAS : TRANSPORTADORAS
+  const conhecida = todas.some((m) => m.nome === valor)
   const [outra, setOutra] = useState(!!valor && !conhecida)
+  const [expandido, setExpandido] = useState(false)
   const selecionado = outra ? 'Outra' : conhecida ? valor : ''
+  const visiveis = expandido ? todas : todas.filter((m, i) => i < 8 || m.nome === valor)
 
   return (
     <div className="space-y-3">
       <ToggleGroup.Root
         type="single"
         value={selecionado}
-        aria-label="Transportadora"
+        aria-label={rotulo}
         className="flex flex-wrap gap-2"
         onValueChange={(v) => {
           if (v === 'Outra') {
@@ -112,25 +127,94 @@ export function SeletorTransportadora({
           }
         }}
       >
-        {[...TRANSPORTADORAS, 'Outra'].map((t) => (
-          <ToggleGroup.Item
-            key={t}
-            value={t}
-            className="min-h-11 cursor-pointer rounded-full border border-line bg-s2 px-4 text-sm font-medium transition duration-[120ms] hover:bg-s3 data-[state=on]:border-accent data-[state=on]:bg-accent data-[state=on]:text-on-accent"
-          >
-            {t}
+        {visiveis.map((m) => (
+          <ToggleGroup.Item key={m.id} value={m.nome} className={chipBase}>
+            <LogoMarca marca={m} tamanho={28} />
+            {m.nome}
           </ToggleGroup.Item>
         ))}
+        <ToggleGroup.Item value="Outra" className={`${chipBase} pl-4`}>
+          Outra
+        </ToggleGroup.Item>
       </ToggleGroup.Root>
+      {todas.length > 8 && (
+        <button
+          type="button"
+          onClick={() => setExpandido((x) => !x)}
+          className="min-h-11 cursor-pointer text-sm font-medium text-accent hover:underline"
+        >
+          {expandido ? 'Mostrar menos' : `Ver todas (${todas.length})`}
+        </button>
+      )}
       {outra && (
         <input
           value={valor}
           onChange={(e) => aoMudar(e.target.value)}
-          placeholder="Nome da transportadora"
-          aria-label="Nome da transportadora"
+          placeholder={`Nome da ${tipo === 'loja' ? 'loja' : 'transportadora'}`}
+          aria-label={`Nome da ${tipo === 'loja' ? 'loja' : 'transportadora'}`}
           className="min-h-12 w-full rounded-botao border border-line bg-s2 px-4 text-base"
         />
       )}
+    </div>
+  )
+}
+
+/** Chips de escolha única com ícone opcional. Tocar no escolhido de novo limpa, se `limpavel`. */
+export function ChipsUnico<T extends string>({
+  valor,
+  aoMudar,
+  opcoes,
+  rotulo,
+  limpavel,
+}: {
+  valor: T | ''
+  aoMudar: (v: T | '') => void
+  opcoes: Array<{ valor: T; rotulo: string; icone?: ReactNode }>
+  rotulo: string
+  limpavel?: boolean
+}) {
+  return (
+    <ToggleGroup.Root
+      type="single"
+      value={valor}
+      aria-label={rotulo}
+      className="flex flex-wrap gap-2"
+      onValueChange={(v) => {
+        if (v || limpavel) aoMudar(v as T | '')
+      }}
+    >
+      {opcoes.map((o) => (
+        <ToggleGroup.Item key={o.valor} value={o.valor} className={`${chipBase} ${o.icone ? '' : 'pl-4'}`}>
+          {o.icone && <span className="grid size-7 place-items-center text-muted">{o.icone}</span>}
+          {o.rotulo}
+        </ToggleGroup.Item>
+      ))}
+    </ToggleGroup.Root>
+  )
+}
+
+export function Contador({
+  valor,
+  aoMudar,
+  rotulo,
+}: {
+  valor: number
+  aoMudar: (n: number) => void
+  rotulo: string
+}) {
+  const botao =
+    'grid size-11 cursor-pointer place-items-center rounded-botao border border-line bg-s2 transition duration-[120ms] hover:bg-s3 disabled:cursor-not-allowed disabled:opacity-40'
+  return (
+    <div className="inline-flex items-center gap-3" role="group" aria-label={rotulo}>
+      <button type="button" className={botao} aria-label="Diminuir" disabled={valor <= 1} onClick={() => aoMudar(valor - 1)}>
+        <Minus className="size-5" strokeWidth={1.75} />
+      </button>
+      <span className="num min-w-8 text-center text-2xl font-medium" aria-live="polite">
+        {valor}
+      </span>
+      <button type="button" className={botao} aria-label="Aumentar" disabled={valor >= 99} onClick={() => aoMudar(valor + 1)}>
+        <Plus className="size-5" strokeWidth={1.75} />
+      </button>
     </div>
   )
 }

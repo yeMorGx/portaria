@@ -16,9 +16,9 @@ Sem configuração, abre em **modo demonstração** (dados em memória, sem logi
 ## Configurar o Supabase (produção)
 
 1. Crie um projeto em supabase.com.
-2. No **SQL Editor**, execute `supabase/schema.sql` (tabelas, RLS e bucket privado `etiquetas`).
+2. No **SQL Editor**, execute `supabase/schema.sql` (tabelas, RLS e bucket privado `etiquetas`) e, em seguida, `supabase/migrations/002_fase2_pedido_completo.sql` (pedido completo, ciclo de retirada e consentimento do morador).
 3. Em **Authentication → Users**, crie a conta da portaria (e-mail e senha). Desative o cadastro público em **Authentication → Providers → Email → Allow new users to sign up**.
-4. Cadastre os moradores na tabela `moradores` (Table Editor → Import CSV, colunas `nome`, `apartamento`).
+4. Cadastre os moradores na tabela `moradores` (Table Editor → Import CSV, colunas `nome`, `apartamento`, `bloco`, `telefone` em formato +55DDDNÚMERO e `consentimento_em` com a data do aceite para receber avisos).
 5. Copie `.env.example` para `.env.local` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
 
 ## Deploy

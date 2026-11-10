@@ -2,13 +2,23 @@ import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Toaster, toast } from 'sonner'
 import { CapturaFoto, LeitorCodigo } from './components/Camera'
-import { Conferencia, Escolha, Inicio, Login, type Rascunho } from './components/Telas'
+import { Entrega } from './components/Entrega'
+import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Cabecalho, Marca, Pagina } from './components/ui'
 import { dados, type Encomenda } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
 
-type Tela = 'carregando' | 'login' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir'
+type Tela = 'carregando' | 'login' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
+
+const CHAVE_TURNO = 'portaria.turno'
+function lerTurno(): string {
+  try {
+    return localStorage.getItem(CHAVE_TURNO) ?? ''
+  } catch {
+    return ''
+  }
+}
 type Etapa = 'ocr' | 'busca'
 
 /** Abertura do app: marca com contador. Some assim que a sessão é conhecida. */
@@ -94,7 +104,12 @@ export default function App() {
   const [previa, setPrevia] = useState<string | null>(null)
   const [etapa, setEtapa] = useState<Etapa>('ocr')
   const [textoLido, setTextoLido] = useState('')
+  const [turno, setTurno] = useState(lerTurno)
+  const [entrega, setEntrega] = useState<Encomenda | null>(null)
+  const [enviando, setEnviando] = useState(false)
   const reduzir = useReducedMotion()
+
+  const proxima = useCallback(() => (lerTurno() ? 'inicio' : 'turno') as Tela, [])
 
   const carregar = useCallback(async () => {
     try {
@@ -110,21 +125,32 @@ export default function App() {
   useEffect(() => {
     dados.sessaoAtiva().then((ok) => {
       if (ok) {
-        setTela('inicio')
+        setTela(proxima())
         carregar()
       } else setTela('login')
     })
-  }, [carregar])
+  }, [carregar, proxima])
 
-  function novoRascunho(parcial: Partial<Rascunho>): Rascunho {
+  function novoRascunho(parcial: Partial<Rascunho>, texto = ''): Rascunho {
+    const r = extrairDados(texto, moradores)
     return {
       foto: null,
       fotoUrl: null,
       codigo: null,
-      morador: null,
-      nome: '',
-      apartamento: '',
-      transportadora: '',
+      morador: r.morador,
+      loja: r.loja ?? '',
+      transportadora: r.transportadora ?? '',
+      vendedor: r.remetente ?? '',
+      pedido: r.pedido ?? '',
+      rastreio: r.rastreio ?? '',
+      origem_cidade: r.origem_cidade ?? '',
+      origem_uf: r.origem_uf ?? '',
+      tipo: 'caixa',
+      volumes: 1,
+      condicao: 'ok',
+      local_guarda: '',
+      observacao: '',
+      foto_pacote: null,
       ...parcial,
     }
   }
@@ -144,46 +170,73 @@ export default function App() {
     }
     setTextoLido(texto)
     setEtapa('busca')
-    const r = extrairDados(texto, moradores)
     if (!reduzir && texto) await new Promise((ok) => setTimeout(ok, 450))
-    setRascunho(
-      novoRascunho({
-        foto,
-        fotoUrl: URL.createObjectURL(foto),
-        morador: r.morador,
-        transportadora: r.transportadora ?? '',
-      }),
-    )
+    setRascunho(novoRascunho({ foto, fotoUrl: URL.createObjectURL(foto) }, texto))
     setTela('conferir')
   }
 
   function processarCodigo(codigo: string) {
-    const r = extrairDados(codigo, moradores)
-    setRascunho(novoRascunho({ codigo, morador: r.morador, transportadora: r.transportadora ?? '' }))
+    const pareceRastreio = !/s/.test(codigo) && codigo.length >= 8 && codigo.length <= 30
+    setRascunho(novoRascunho({ codigo, ...(pareceRastreio ? { rastreio: codigo.toUpperCase() } : {}) }, codigo))
     setTela('conferir')
   }
 
-  async function salvar(r: Rascunho) {
+  async function salvar(r: Rascunho & { morador: Morador }) {
     setSalvando(true)
     setErro(null)
     try {
+      const vazio = (v: string) => v.trim() || null
       const salva = await dados.salvarEncomenda({
-        morador_id: r.morador?.id ?? null,
-        destinatario_nome: r.nome,
-        apartamento: r.apartamento,
-        transportadora: r.transportadora.trim() || null,
+        morador: r.morador,
+        destinatario_nome: r.morador.nome,
+        apartamento: r.morador.apartamento,
+        loja: vazio(r.loja),
+        transportadora: vazio(r.transportadora),
+        vendedor: vazio(r.vendedor),
+        pedido: vazio(r.pedido),
+        rastreio: vazio(r.rastreio),
+        origem_cidade: vazio(r.origem_cidade),
+        origem_uf: vazio(r.origem_uf),
+        tipo: r.tipo,
+        volumes: r.volumes,
+        condicao: r.condicao,
+        local_guarda: vazio(r.local_guarda),
+        observacao: vazio(r.observacao),
         codigo_lido: r.codigo,
         foto: r.foto,
+        foto_pacote: r.foto_pacote,
+        recebido_por: turno,
       })
       await carregar()
       setNovoId(salva.id)
       setRascunho(null)
       setTela('inicio')
-      toast.success('Encomenda salva')
+      toast.success(
+        salva.status === 'avisada'
+          ? 'Encomenda salva. Aviso ao morador enviado (simulado).'
+          : 'Encomenda salva. Morador sem telefone ou consentimento: sem aviso.',
+      )
     } catch {
       setErro('Não foi possível salvar. Tente novamente.')
     } finally {
       setSalvando(false)
+    }
+  }
+
+  async function confirmarEntrega(d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob }) {
+    if (!entrega) return
+    setEnviando(true)
+    setErro(null)
+    try {
+      await dados.confirmarEntrega({ encomenda: entrega, entreguePor: turno, ...d })
+      await carregar()
+      setEntrega(null)
+      setTela('inicio')
+      toast.success('Entrega confirmada')
+    } catch (e) {
+      setErro(e instanceof Error && e.message === 'Código incorreto.' ? 'Código incorreto. Peça o código ao morador e tente de novo.' : 'Não foi possível confirmar a entrega. Tente novamente.')
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -195,8 +248,22 @@ export default function App() {
         return (
           <Login
             aoEntrar={() => {
-              setTela('inicio')
+              setTela(proxima())
               carregar()
+            }}
+          />
+        )
+      case 'turno':
+        return (
+          <Turno
+            aoConfirmar={(nome) => {
+              try {
+                localStorage.setItem(CHAVE_TURNO, nome)
+              } catch {
+                /* sem armazenamento: o nome vale só nesta sessão */
+              }
+              setTurno(nome)
+              setTela('inicio')
             }}
           />
         )
@@ -206,7 +273,14 @@ export default function App() {
             encomendas={encomendas}
             erro={erro}
             novoId={novoId}
+            turno={turno}
             aoNova={() => setTela('escolha')}
+            aoEntregar={(e) => {
+              setErro(null)
+              setEntrega(e)
+              setTela('entrega')
+            }}
+            aoTrocarTurno={() => setTela('turno')}
             aoRecarregar={carregar}
             aoSair={
               dados.precisaLogin
@@ -218,6 +292,21 @@ export default function App() {
             }
           />
         )
+      case 'entrega':
+        return entrega ? (
+          <Entrega
+            encomenda={entrega}
+            entreguePor={turno}
+            enviando={enviando}
+            erro={erro}
+            aoConfirmar={confirmarEntrega}
+            aoVoltar={() => {
+              setErro(null)
+              setEntrega(null)
+              setTela('inicio')
+            }}
+          />
+        ) : null
       case 'escolha':
         return (
           <Escolha aoFoto={() => setTela('foto')} aoCodigo={() => setTela('codigo')} aoVoltar={() => setTela('inicio')} />

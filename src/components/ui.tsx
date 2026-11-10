@@ -144,15 +144,21 @@ export function Aviso({
   )
 }
 
-export function EstadoVazio() {
+export function EstadoVazio({
+  titulo = 'Nenhuma encomenda registrada ainda',
+  texto = 'Toque em “Nova Encomenda” quando chegar o primeiro pacote.',
+}: {
+  titulo?: string
+  texto?: string
+}) {
   return (
     <div className="flex flex-col items-center gap-4 px-6 py-14 text-center">
       <span className="grid size-16 place-items-center rounded-botao bg-accent-soft text-accent">
         <Package className="size-8" strokeWidth={1.5} />
       </span>
       <div>
-        <p className="m-0 text-lg font-semibold">Nenhuma encomenda registrada ainda</p>
-        <p className="m-0 mt-1 text-muted">Toque em “Nova Encomenda” quando chegar o primeiro pacote.</p>
+        <p className="m-0 text-lg font-semibold">{titulo}</p>
+        <p className="m-0 mt-1 text-muted">{texto}</p>
       </div>
     </div>
   )

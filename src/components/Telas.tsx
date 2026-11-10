@@ -1,12 +1,15 @@
-import { Check, LogOut, Plus, QrCode, ScanLine, TriangleAlert } from 'lucide-react'
+import * as ToggleGroup from '@radix-ui/react-toggle-group'
+import { Camera, Check, ChevronDown, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
-import { dados, type Encomenda } from '../lib/data'
+import { dados, type Condicao, type Encomenda, type TipoPacote } from '../lib/data'
 import type { Morador } from '../lib/parser'
-import { SeletorMorador, SeletorTransportadora } from './Selecao'
+import { CONDICOES, CartaoPedido, TIPOS } from './Pedido'
+import { ChipsUnico, Contador, SeletorMarca, SeletorMorador } from './Selecao'
 import { Aparecer, Aviso, Botao, Cabecalho, EsqueletoLista, EstadoVazio, Marca, Pagina, Titulo } from './ui'
 
 const campo = 'min-h-12 w-full rounded-botao border border-line bg-s2 px-4 text-lg'
+const campoPequeno = 'min-h-12 w-full rounded-botao border border-line bg-s2 px-4 text-base'
 
 export function Login({ aoEntrar }: { aoEntrar: () => void }) {
   const [email, setEmail] = useState('')
@@ -68,6 +71,39 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
   )
 }
 
+/** Turno: quem está na portaria. Sem gestão de funcionários, só um nome lembrado neste aparelho. */
+export function Turno({ aoConfirmar }: { aoConfirmar: (nome: string) => void }) {
+  const [nome, setNome] = useState('')
+  return (
+    <Pagina className="flex min-h-screen flex-col justify-center md:max-w-lg">
+      <Aparecer>
+        <form
+          className="tile cantos flex flex-col gap-4 p-6 pt-10 md:p-8 md:pt-12"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (nome.trim().length >= 2) aoConfirmar(nome.trim())
+          }}
+        >
+          <Marca />
+          <Titulo className="mt-4 md:!text-[32px] md:!leading-9">Quem está na portaria?</Titulo>
+          <p className="m-0 text-muted">O nome fica registrado em cada encomenda recebida e entregue neste turno.</p>
+          <input
+            autoFocus
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Seu nome"
+            aria-label="Seu nome"
+            className={campo}
+          />
+          <Botao type="submit" disabled={nome.trim().length < 2} className="w-full">
+            Começar turno
+          </Botao>
+        </form>
+      </Aparecer>
+    </Pagina>
+  )
+}
+
 const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
 const diaCompleto = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -84,10 +120,10 @@ function rotuloDia(d: Date): string {
   return diaCompleto.format(d)
 }
 
-function agruparPorDia(itens: Encomenda[]): Array<{ dia: string; itens: Encomenda[] }> {
+function agruparPorDia(itens: Encomenda[], campoData: 'recebido_em' | 'retirado_em'): Array<{ dia: string; itens: Encomenda[] }> {
   const grupos: Array<{ dia: string; itens: Encomenda[] }> = []
   for (const e of itens) {
-    const dia = rotuloDia(new Date(e.recebido_em))
+    const dia = rotuloDia(new Date(e[campoData] ?? e.recebido_em))
     const ultimo = grupos[grupos.length - 1]
     if (ultimo?.dia === dia) ultimo.itens.push(e)
     else grupos.push({ dia, itens: [e] })
@@ -95,44 +131,64 @@ function agruparPorDia(itens: Encomenda[]): Array<{ dia: string; itens: Encomend
   return grupos
 }
 
-function contarDias(lista: Encomenda[]) {
+function contar(lista: Encomenda[]) {
   const agora = new Date()
-  const antes = new Date()
-  antes.setDate(agora.getDate() - 1)
   return {
-    hoje: lista.filter((e) => mesmoDia(new Date(e.recebido_em), agora)).length,
-    ontem: lista.filter((e) => mesmoDia(new Date(e.recebido_em), antes)).length,
+    aguardando: lista.filter((e) => e.status !== 'retirada').length,
+    recebidasHoje: lista.filter((e) => mesmoDia(new Date(e.recebido_em), agora)).length,
   }
 }
+
+type Aba = 'aguardando' | 'retiradas'
 
 export function Inicio({
   encomendas,
   erro,
   novoId,
+  turno,
   aoNova,
+  aoEntregar,
+  aoTrocarTurno,
   aoSair,
   aoRecarregar,
 }: {
   encomendas: Encomenda[] | null
   erro: string | null
   novoId: string | null
+  turno: string
   aoNova: () => void
+  aoEntregar: (e: Encomenda) => void
+  aoTrocarTurno: () => void
   aoSair?: () => void
   aoRecarregar: () => void
 }) {
-  const grupos = useMemo(() => agruparPorDia(encomendas ?? []), [encomendas])
-  const { hoje, ontem } = useMemo(() => contarDias(encomendas ?? []), [encomendas])
+  const [aba, setAba] = useState<Aba>('aguardando')
+  const { aguardando, recebidasHoje } = useMemo(() => contar(encomendas ?? []), [encomendas])
+  const lista = useMemo(() => {
+    const todas = encomendas ?? []
+    return aba === 'aguardando'
+      ? todas.filter((e) => e.status !== 'retirada')
+      : todas.filter((e) => e.status === 'retirada').sort((a, b) => (b.retirado_em ?? '').localeCompare(a.retirado_em ?? ''))
+  }, [encomendas, aba])
+  const grupos = useMemo(() => agruparPorDia(lista, aba === 'aguardando' ? 'recebido_em' : 'retirado_em'), [lista, aba])
+  const totalRetiradas = (encomendas?.length ?? 0) - aguardando
 
   return (
     <Pagina>
-      <header className="mb-6 flex min-h-11 items-center justify-between md:mb-8">
+      <header className="mb-6 flex min-h-11 items-center justify-between gap-3 md:mb-8">
         <Marca />
-        {aoSair && (
-          <Botao variante="fantasma" onClick={aoSair} className="!min-h-11 !gap-2 !px-3">
-            <LogOut className="size-5" strokeWidth={1.75} />
-            Sair
+        <div className="flex items-center gap-1">
+          <Botao variante="fantasma" onClick={aoTrocarTurno} className="!min-h-11 !gap-2 !px-3" aria-label="Trocar turno">
+            <UserRound className="size-5" strokeWidth={1.75} />
+            <span className="max-w-[9ch] truncate md:max-w-none">{turno}</span>
           </Botao>
-        )}
+          {aoSair && (
+            <Botao variante="fantasma" onClick={aoSair} className="!min-h-11 !gap-2 !px-3">
+              <LogOut className="size-5" strokeWidth={1.75} />
+              <span className="hidden md:inline">Sair</span>
+            </Botao>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-12 lg:gap-6">
@@ -158,13 +214,13 @@ export function Inicio({
 
         <Aparecer i={1} className="col-span-2 md:col-span-4">
           <div className="tile flex h-full min-h-36 flex-col justify-between gap-4 p-6 md:min-h-56 md:p-8">
-            <p className="rotulo m-0">Hoje</p>
+            <p className="rotulo m-0">Aguardando retirada</p>
             <div>
-              <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="contador-hoje">
-                {hoje}
+              <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="contador-aguardando">
+                {aguardando}
               </p>
               <p className="m-0 mt-2 text-muted">
-                {hoje === 1 ? 'encomenda' : 'encomendas'} · ontem <span className="num">{ontem}</span>
+                recebidas hoje <span className="num">{recebidasHoje}</span>
               </p>
             </div>
           </div>
@@ -172,9 +228,30 @@ export function Inicio({
 
         <Aparecer i={2} className="col-span-2 md:col-span-12">
           <section className="tile overflow-hidden" aria-label="Encomendas">
-            <div className="flex items-center justify-between px-4 pt-5 pb-3 md:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3 md:px-6">
               <h2 className="text-2xl leading-8 font-semibold tracking-[-0.02em]">Encomendas</h2>
-              <span className="rotulo num">{encomendas?.length ?? 0}</span>
+              <ToggleGroup.Root
+                type="single"
+                value={aba}
+                aria-label="Filtrar encomendas"
+                onValueChange={(v) => v && setAba(v as Aba)}
+                className="inline-flex rounded-full bg-s2 p-1"
+              >
+                {(
+                  [
+                    ['aguardando', 'Aguardando', aguardando],
+                    ['retiradas', 'Retiradas', totalRetiradas],
+                  ] as const
+                ).map(([valor, rotulo, n]) => (
+                  <ToggleGroup.Item
+                    key={valor}
+                    value={valor}
+                    className="min-h-11 cursor-pointer rounded-full px-4 text-sm font-medium transition duration-[120ms] data-[state=on]:bg-s1 data-[state=on]:shadow-sm"
+                  >
+                    {rotulo} <span className="num text-muted">{n}</span>
+                  </ToggleGroup.Item>
+                ))}
+              </ToggleGroup.Root>
             </div>
             {erro && (
               <div className="px-4 pb-4 md:px-6">
@@ -182,7 +259,12 @@ export function Inicio({
               </div>
             )}
             {encomendas === null && !erro && <EsqueletoLista />}
-            {encomendas?.length === 0 && <EstadoVazio />}
+            {encomendas !== null && lista.length === 0 && (
+              <EstadoVazio
+                titulo={aba === 'aguardando' ? 'Nenhuma encomenda aguardando' : 'Nenhuma entrega registrada ainda'}
+                texto={aba === 'aguardando' ? 'Toque em “Nova Encomenda” quando chegar um pacote.' : 'As entregas confirmadas aparecem aqui.'}
+              />
+            )}
             {!!grupos.length && (
               <div data-testid="lista">
                 {grupos.map((g) => (
@@ -195,31 +277,35 @@ export function Inicio({
                       {g.itens.map((e) => (
                         <motion.li
                           key={e.id}
-                          className="flex items-center gap-4 px-4 py-4 md:px-6"
                           initial={e.id === novoId ? { backgroundColor: 'var(--accent-soft)', y: -6, opacity: 0.4 } : false}
                           animate={{ backgroundColor: 'rgba(0,0,0,0)', y: 0, opacity: 1 }}
                           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                          className="flex items-center"
                         >
-                          {e.foto_url ? (
-                            <img src={e.foto_url} alt="" className="size-14 shrink-0 rounded-campo object-cover" />
-                          ) : (
-                            <div
-                              className="grid size-14 shrink-0 place-items-center rounded-campo bg-accent-soft text-accent"
-                              aria-hidden
+                          {e.status !== 'retirada' ? (
+                            <button
+                              onClick={() => aoEntregar(e)}
+                              aria-label={`Entregar para ${e.destinatario_nome}`}
+                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
                             >
-                              <QrCode className="size-6" strokeWidth={1.75} />
+                              <div className="min-w-0 flex-1">
+                                <CartaoPedido e={e} linha />
+                              </div>
+                              <time className="num shrink-0 self-start pt-1 text-base text-muted" dateTime={e.recebido_em}>
+                                {hora.format(new Date(e.recebido_em))}
+                              </time>
+                            </button>
+                          ) : (
+                            <div className="flex w-full items-center gap-3 px-4 py-4 md:px-6">
+                              <div className="min-w-0 flex-1">
+                                <CartaoPedido e={e} linha />
+                              </div>
+                              <p className="num m-0 shrink-0 self-start pt-1 text-right text-sm text-muted">
+                                <Check className="mr-1 inline size-4 text-ok" strokeWidth={2} />
+                                {e.retirado_em ? hora.format(new Date(e.retirado_em)) : ''}
+                              </p>
                             </div>
                           )}
-                          <div className="min-w-0 flex-1">
-                            <p className="m-0 line-clamp-2 text-lg leading-snug font-semibold">{e.destinatario_nome}</p>
-                            <p className="m-0 text-muted">
-                              Apto <span className="num font-medium text-ink">{e.apartamento}</span>
-                              {e.transportadora ? ` · ${e.transportadora}` : ''}
-                            </p>
-                          </div>
-                          <time className="num shrink-0 text-base text-muted" dateTime={e.recebido_em}>
-                            {hora.format(new Date(e.recebido_em))}
-                          </time>
                         </motion.li>
                       ))}
                     </ul>
@@ -256,7 +342,7 @@ export function Escolha({
             <ScanLine className="size-10" strokeWidth={1.5} />
             <span>
               <span className="block text-[32px] leading-9 font-semibold tracking-[-0.02em]">Fotografar etiqueta</span>
-              <span className="mt-1 block text-on-accent/80">Lê nome, apartamento e transportadora.</span>
+              <span className="mt-1 block text-on-accent/80">Lê nome, apartamento, loja e transportadora.</span>
             </span>
           </button>
         </Aparecer>
@@ -282,9 +368,30 @@ export interface Rascunho {
   fotoUrl: string | null
   codigo: string | null
   morador: Morador | null
-  nome: string
-  apartamento: string
+  loja: string
   transportadora: string
+  vendedor: string
+  pedido: string
+  rastreio: string
+  origem_cidade: string
+  origem_uf: string
+  tipo: TipoPacote
+  volumes: number
+  condicao: Condicao
+  local_guarda: string
+  observacao: string
+  foto_pacote: Blob | null
+}
+
+const LOCAIS = ['Prateleira A', 'Prateleira B', 'Armário', 'Sala de encomendas', 'Geladeira']
+
+function Tile({ rotulo, children, className = '' }: { rotulo?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`tile flex flex-col gap-4 p-6 ${className}`}>
+      {rotulo && <p className="rotulo m-0">{rotulo}</p>}
+      {children}
+    </div>
+  )
 }
 
 export function Conferencia({
@@ -299,25 +406,29 @@ export function Conferencia({
   moradores: Morador[]
   salvando: boolean
   erro: string | null
-  aoSalvar: (r: Rascunho) => void
+  aoSalvar: (r: Rascunho & { morador: Morador }) => void
   aoCancelar: () => void
 }) {
   const [moradorId, setMoradorId] = useState(rascunho.morador?.id ?? '')
-  const [transportadora, setTransportadora] = useState(rascunho.transportadora)
+  const [f, setF] = useState(rascunho)
+  const temDetalhe = !!(f.rastreio || f.pedido || f.vendedor || f.origem_cidade)
+  const [detalhes, setDetalhes] = useState(temDetalhe)
   const morador = moradores.find((m) => m.id === moradorId) ?? null
   const identificado = !!rascunho.morador
+  const mudar = <K extends keyof Rascunho>(k: K, v: Rascunho[K]) => setF((x) => ({ ...x, [k]: v }))
+  const previaPacote = useMemo(() => (f.foto_pacote ? URL.createObjectURL(f.foto_pacote) : null), [f.foto_pacote])
 
   return (
     <Pagina>
       <Cabecalho titulo="Conferir encomenda" passo={3} voltar={aoCancelar} />
-      <div className="grid gap-4 md:grid-cols-12 lg:gap-6">
-        <Aparecer i={0} className="md:col-span-5 md:row-span-3">
-          <div className="tile overflow-hidden md:h-full">
+      <div className="grid gap-4 lg:grid-cols-12 lg:gap-6">
+        <Aparecer i={0} className="lg:col-span-4 lg:row-span-3">
+          <div className="tile overflow-hidden lg:h-full">
             {rascunho.fotoUrl ? (
               <img
                 src={rascunho.fotoUrl}
                 alt="Foto da etiqueta"
-                className="max-h-64 w-full bg-s2 object-contain md:max-h-none md:h-full"
+                className="max-h-64 w-full bg-s2 object-contain lg:h-full lg:max-h-none"
               />
             ) : (
               <div className="p-6 text-muted">
@@ -332,65 +443,137 @@ export function Conferencia({
           </div>
         </Aparecer>
 
-        <Aparecer i={1} className="md:col-span-7">
-          <div className={`tile flex flex-col gap-4 p-6 ${identificado ? 'pulso' : ''}`}>
+        <Aparecer i={1} className="lg:col-span-5">
+          <Tile className={identificado ? 'pulso' : ''}>
             <p
               className={`m-0 flex items-center gap-2 text-sm font-medium ${identificado ? 'text-ok' : 'text-warn'}`}
               role="status"
             >
-              {identificado ? (
-                <Check className="size-4" strokeWidth={2} />
-              ) : (
-                <TriangleAlert className="size-4" strokeWidth={2} />
-              )}
+              {identificado ? <Check className="size-4" strokeWidth={2} /> : <TriangleAlert className="size-4" strokeWidth={2} />}
               {identificado ? 'Morador identificado. Confira e salve.' : 'Não foi possível identificar o morador. Selecione abaixo.'}
             </p>
             <div>
               <p className="rotulo m-0 mb-2">Morador</p>
               <SeletorMorador moradores={moradores} valor={moradorId} aoMudar={setMoradorId} />
             </div>
-          </div>
+          </Tile>
         </Aparecer>
 
-        <Aparecer i={2} className="md:col-span-7">
-          <div className="tile flex items-end justify-between gap-4 p-6">
-            <div>
-              <p className="rotulo m-0">Apartamento</p>
-              <p
-                className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]"
-                data-testid="apto"
-              >
-                {morador?.apartamento ?? '—'}
-              </p>
+        <Aparecer i={2} className="lg:col-span-3">
+          <Tile rotulo="Apartamento" className="h-full justify-end">
+            <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="apto">
+              {morador?.apartamento ?? '—'}
+            </p>
+            {morador?.bloco && <p className="m-0 -mt-2 text-muted">Bloco {morador.bloco}</p>}
+          </Tile>
+        </Aparecer>
+
+        <Aparecer i={3} className="lg:col-span-8">
+          <Tile rotulo="Onde foi comprado">
+            <SeletorMarca tipo="loja" valor={f.loja} aoMudar={(v) => mudar('loja', v)} rotulo="Loja" />
+          </Tile>
+        </Aparecer>
+
+        <Aparecer i={4} className="lg:col-span-8">
+          <Tile rotulo="Transportadora">
+            <SeletorMarca tipo="transportadora" valor={f.transportadora} aoMudar={(v) => mudar('transportadora', v)} rotulo="Transportadora" />
+          </Tile>
+        </Aparecer>
+
+        <Aparecer i={5} className="lg:col-span-6">
+          <Tile rotulo="Pacote">
+            <ChipsUnico<TipoPacote> valor={f.tipo} aoMudar={(v) => v && mudar('tipo', v)} opcoes={TIPOS} rotulo="Tipo de pacote" />
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-base font-medium">Volumes</span>
+              <Contador valor={f.volumes} aoMudar={(n) => mudar('volumes', n)} rotulo="Volumes" />
             </div>
-          </div>
+            <div>
+              <p className="rotulo m-0 mb-2">Condição</p>
+              <ChipsUnico<Condicao> valor={f.condicao} aoMudar={(v) => v && mudar('condicao', v)} opcoes={CONDICOES} rotulo="Condição do pacote" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-botao border border-line bg-s2 px-4 text-sm font-medium transition duration-[120ms] hover:bg-s3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-accent">
+                <Camera className="size-5" strokeWidth={1.75} />
+                {f.foto_pacote ? 'Trocar foto do pacote' : 'Foto do pacote (opcional)'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  data-testid="foto-pacote"
+                  onChange={(e) => e.target.files?.[0] && mudar('foto_pacote', e.target.files[0])}
+                />
+              </label>
+              {previaPacote && <img src={previaPacote} alt="Foto do pacote" className="size-11 rounded-campo object-cover" />}
+            </div>
+          </Tile>
         </Aparecer>
 
-        <Aparecer i={3} className="md:col-span-7">
-          <div className="tile p-6">
-            <p className="rotulo m-0 mb-3">Transportadora</p>
-            <SeletorTransportadora valor={transportadora} aoMudar={setTransportadora} />
-          </div>
+        <Aparecer i={6} className="lg:col-span-6">
+          <Tile rotulo="Local de guarda">
+            <ChipsUnico<string>
+              valor={LOCAIS.includes(f.local_guarda) ? f.local_guarda : ''}
+              aoMudar={(v) => mudar('local_guarda', v)}
+              opcoes={LOCAIS.map((l) => ({ valor: l, rotulo: l }))}
+              rotulo="Local de guarda"
+              limpavel
+            />
+            <input
+              value={f.local_guarda}
+              onChange={(e) => mudar('local_guarda', e.target.value)}
+              placeholder="Outro local"
+              aria-label="Outro local de guarda"
+              className={campoPequeno}
+            />
+          </Tile>
         </Aparecer>
 
-        <Aparecer i={4} className="md:col-span-12">
-          <div className="sticky bottom-4 z-10 space-y-3 md:static">
-            {erro && <Aviso>{erro}</Aviso>}
-            <Botao
-              grande
-              className="w-full"
-              disabled={!morador || salvando}
-              onClick={() =>
-                morador &&
-                aoSalvar({
-                  ...rascunho,
-                  morador,
-                  nome: morador.nome,
-                  apartamento: morador.apartamento,
-                  transportadora: transportadora.trim(),
-                })
-              }
+        <Aparecer i={7} className="lg:col-span-12">
+          <div className="tile overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setDetalhes((x) => !x)}
+              aria-expanded={detalhes}
+              className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 px-6 text-left transition duration-[120ms] hover:bg-s2"
             >
+              <span className="rotulo">Mais detalhes (rastreio, pedido, remetente, origem, observação)</span>
+              <ChevronDown className={`size-5 shrink-0 transition duration-200 ${detalhes ? 'rotate-180' : ''}`} strokeWidth={1.75} />
+            </button>
+            {detalhes && (
+              <div className="grid gap-4 p-6 pt-2 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="rotulo">Código de rastreio</span>
+                  <input value={f.rastreio} onChange={(e) => mudar('rastreio', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="Código de rastreio" />
+                </label>
+                <label className="space-y-1">
+                  <span className="rotulo">Número do pedido</span>
+                  <input value={f.pedido} onChange={(e) => mudar('pedido', e.target.value)} className={`${campoPequeno} num`} aria-label="Número do pedido" />
+                </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="rotulo">Remetente ou vendedor</span>
+                  <input value={f.vendedor} onChange={(e) => mudar('vendedor', e.target.value)} className={campoPequeno} aria-label="Remetente ou vendedor" />
+                </label>
+                <label className="space-y-1">
+                  <span className="rotulo">Cidade de origem</span>
+                  <input value={f.origem_cidade} onChange={(e) => mudar('origem_cidade', e.target.value)} className={campoPequeno} aria-label="Cidade de origem" />
+                </label>
+                <label className="space-y-1">
+                  <span className="rotulo">UF</span>
+                  <input value={f.origem_uf} maxLength={2} onChange={(e) => mudar('origem_uf', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="UF de origem" />
+                </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="rotulo">Observação</span>
+                  <textarea value={f.observacao} onChange={(e) => mudar('observacao', e.target.value)} rows={2} className="w-full rounded-botao border border-line bg-s2 p-4 text-base" aria-label="Observação" />
+                </label>
+              </div>
+            )}
+          </div>
+        </Aparecer>
+
+        <Aparecer i={8} className="lg:col-span-12">
+          <div className="sticky bottom-4 z-10 space-y-3 lg:static">
+            {erro && <Aviso>{erro}</Aviso>}
+            <Botao grande className="w-full" disabled={!morador || salvando} onClick={() => morador && aoSalvar({ ...f, morador })}>
               {salvando ? 'Salvando…' : 'Salvar Encomenda'}
             </Botao>
           </div>
