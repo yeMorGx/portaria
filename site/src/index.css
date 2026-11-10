@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/* Tokens do app (DESIGN.md), com cenas escuras alternadas. O site tem tema fixo: claro com cenas escuras. */
+:root {
+  --bg: #f4f4f0;
+  --surface-1: #ffffff;
+  --surface-2: #eeeef4;
+  --surface-3: #e3e4ee;
+  --text: #15152b;
+  --text-2: #575772;
+  --border: rgb(21 21 43 / 0.1);
+  --accent: #4338ca;
+  --accent-strong: #3730a3;
+  --accent-soft: #e7e6fa;
+  --on-accent: #ffffff;
+  --noite: #0c0c14;
+  --noite-2: #14141f;
+  --noite-3: #1c1c2a;
+  --noite-texto: #eeeef6;
+  --noite-texto-2: #a2a2bc;
+  --acento-noite: #8b84f5;
+  --ok: #137a4b;
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --color-bg: var(--bg);
+  --color-s1: var(--surface-1);
+  --color-s2: var(--surface-2);
+  --color-s3: var(--surface-3);
+  --color-ink: var(--text);
+  --color-muted: var(--text-2);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-noite: var(--noite);
+  --color-noite-2: var(--noite-2);
+  --color-noite-3: var(--noite-3);
+  --color-noite-texto: var(--noite-texto);
+  --color-noite-texto-2: var(--noite-texto-2);
+  --color-acento-noite: var(--acento-noite);
+  --color-ok: var(--ok);
+  --radius-tile: 20px;
+  --radius-botao: 12px;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    caret-color: var(--accent);
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-3) transparent;
+    overflow-x: clip;
+  }
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+    text-wrap: balance;
+  }
+  p {
+    margin: 0;
+  }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+}
+
+/* Lenis */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rotulo {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tile {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tile);
+}
+
+/* Marcas "+" nos cantos, como no app. */
+.cantos {
+  position: relative;
+}
+.cantos::before,
+.cantos::after {
+  content: '+';
+  position: absolute;
+  top: 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 14px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.cantos::before {
+  left: 14px;
+}
+.cantos::after {
+  right: 14px;
+}
+
+/* Fita de selos que corre sem parar (parada com movimento reduzido). */
+@keyframes fita {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.fita {
+  animation: fita 28s linear infinite;
+}
+@keyframes pulsar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.pulsar {
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fita,
+  .pulsar {
+    animation: none;
+  }
+}
