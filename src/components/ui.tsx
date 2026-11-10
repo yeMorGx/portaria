@@ -1,5 +1,6 @@
 import { ArrowLeft, Package, RotateCw } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { useAnimacao } from '../lib/animacao'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 const EASE_SAIDA = [0.16, 1, 0.3, 1] as const
@@ -39,13 +40,13 @@ export function Aparecer({
   className?: string
   children: ReactNode
 }) {
-  const reduzir = useReducedMotion()
+  const { reduzir } = useAnimacao()
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: reduzir ? 0 : 16 }}
+      initial={{ opacity: 0, y: reduzir ? 0 : 40 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: reduzir ? 0.12 : 0.36, delay: reduzir ? 0 : i * 0.04, ease: EASE_SAIDA }}
+      transition={{ duration: reduzir ? 0.12 : 0.7, delay: reduzir ? 0 : 0.5 + i * 0.09, ease: EASE_SAIDA }}
     >
       {children}
     </motion.div>
@@ -54,13 +55,13 @@ export function Aparecer({
 
 /** Título de tela: entra desfocado e fica nítido (referência: Linear). */
 export function Titulo({ children, className = '' }: { children: ReactNode; className?: string }) {
-  const reduzir = useReducedMotion()
+  const { reduzir } = useAnimacao()
   return (
     <motion.h1
       className={`text-[32px] leading-9 font-semibold tracking-[-0.02em] md:text-5xl md:leading-[48px] md:tracking-[-0.03em] ${className}`}
-      initial={{ opacity: 0, filter: reduzir ? 'none' : 'blur(8px)' }}
+      initial={{ opacity: 0, filter: reduzir ? 'none' : 'blur(14px)' }}
       animate={{ opacity: 1, filter: 'blur(0px)' }}
-      transition={{ duration: reduzir ? 0.12 : 0.6, ease: EASE_SAIDA }}
+      transition={{ duration: reduzir ? 0.12 : 0.9, ease: EASE_SAIDA }}
     >
       {children}
     </motion.h1>

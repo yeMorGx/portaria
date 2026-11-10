@@ -1,9 +1,12 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { Camera, Check, ChevronDown, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { gsap, useGSAP } from '../lib/gsap'
 import { dados, type Condicao, type Encomenda, type TipoPacote } from '../lib/data'
 import type { Morador } from '../lib/parser'
+import { Holofote, NumeroAnimado, TituloLetras } from './Cinema'
+import { ControleAnimacao } from './ControleAnimacao'
 import { CONDICOES, CartaoPedido, TIPOS } from './Pedido'
 import { ChipsUnico, Contador, SeletorMarca, SeletorMorador } from './Selecao'
 import { Aparecer, Aviso, Botao, Cabecalho, EsqueletoLista, EstadoVazio, Marca, Pagina, Titulo } from './ui'
@@ -172,12 +175,23 @@ export function Inicio({
   }, [encomendas, aba])
   const grupos = useMemo(() => agruparPorDia(lista, aba === 'aguardando' ? 'recebido_em' : 'retirado_em'), [lista, aba])
   const totalRetiradas = (encomendas?.length ?? 0) - aguardando
+  const grade = useRef<HTMLDivElement>(null)
+  const carregado = encomendas !== null
+
+  // Linhas da lista entram em sequência ao abrir, ao trocar de aba e quando os dados chegam.
+  useGSAP(
+    () => {
+      gsap.from('[data-linha]', { opacity: 0, y: 28, duration: 0.7, ease: 'expo.out', stagger: 0.06, delay: 0.85, clearProps: 'opacity,transform' })
+    },
+    { scope: grade, dependencies: [aba, carregado] },
+  )
 
   return (
     <Pagina>
       <header className="mb-6 flex min-h-11 items-center justify-between gap-3 md:mb-8">
         <Marca />
         <div className="flex items-center gap-1">
+          <ControleAnimacao />
           <Botao variante="fantasma" onClick={aoTrocarTurno} className="!min-h-11 !gap-2 !px-3" aria-label="Trocar turno">
             <UserRound className="size-5" strokeWidth={1.75} />
             <span className="max-w-[9ch] truncate md:max-w-none">{turno}</span>
@@ -191,18 +205,19 @@ export function Inicio({
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-12 lg:gap-6">
+      <div ref={grade} className="grid grid-cols-2 gap-4 md:grid-cols-12 lg:gap-6">
         <Aparecer i={0} className="col-span-2 md:col-span-8">
+          <Holofote className="rounded-tile">
           <button
             onClick={aoNova}
-            className="cantos relative flex min-h-44 w-full cursor-pointer flex-col justify-between overflow-hidden rounded-tile bg-accent p-6 pt-10 text-left text-on-accent shadow-[var(--shadow-primary)] transition duration-[120ms] hover:bg-accent-strong active:translate-y-px md:min-h-56 md:p-8 md:pt-12"
+            className="cantos relative flex min-h-44 w-full cursor-pointer flex-col justify-between overflow-hidden rounded-tile bg-accent p-6 pt-10 text-left text-on-accent shadow-[var(--shadow-primary)] transition duration-[120ms] hover:-translate-y-0.5 hover:bg-accent-strong active:translate-y-px md:min-h-56 md:p-8 md:pt-12"
           >
             <span className="rotulo !text-on-accent/80">Novo</span>
             <span className="flex items-end justify-between gap-4">
               <span>
-                <span className="block text-[32px] leading-9 font-semibold tracking-[-0.02em] md:text-5xl md:leading-[48px] md:tracking-[-0.03em]">
+                <TituloLetras className="block text-[32px] leading-9 font-semibold tracking-[-0.02em] md:text-5xl md:leading-[48px] md:tracking-[-0.03em]">
                   Nova Encomenda
-                </span>
+                </TituloLetras>
                 <span className="mt-1 block text-on-accent/80">Fotografar a etiqueta ou escanear o código</span>
               </span>
               <span className="grid size-14 shrink-0 place-items-center rounded-botao bg-on-accent/15 md:size-16">
@@ -210,15 +225,18 @@ export function Inicio({
               </span>
             </span>
           </button>
+          </Holofote>
         </Aparecer>
 
         <Aparecer i={1} className="col-span-2 md:col-span-4">
           <div className="tile flex h-full min-h-36 flex-col justify-between gap-4 p-6 md:min-h-56 md:p-8">
             <p className="rotulo m-0">Aguardando retirada</p>
             <div>
-              <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="contador-aguardando">
-                {aguardando}
-              </p>
+              <NumeroAnimado
+                valor={aguardando}
+                testid="contador-aguardando"
+                className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]"
+              />
               <p className="m-0 mt-2 text-muted">
                 recebidas hoje <span className="num">{recebidasHoje}</span>
               </p>
@@ -286,6 +304,7 @@ export function Inicio({
                             <button
                               onClick={() => aoEntregar(e)}
                               aria-label={`Entregar para ${e.destinatario_nome}`}
+                              data-linha
                               className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
                             >
                               <div className="min-w-0 flex-1">
@@ -296,7 +315,7 @@ export function Inicio({
                               </time>
                             </button>
                           ) : (
-                            <div className="flex w-full items-center gap-3 px-4 py-4 md:px-6">
+                            <div data-linha className="flex w-full items-center gap-3 px-4 py-4 md:px-6">
                               <div className="min-w-0 flex-1">
                                 <CartaoPedido e={e} linha />
                               </div>

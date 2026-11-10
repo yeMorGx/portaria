@@ -1,6 +1,6 @@
 # PLANO-FASE-2.md
 
-Status: EM ANDAMENTO (fases A e B construídas; migração SQL aguardando o ok do usuário)
+Status: EM ANDAMENTO (fases A, B e C no ar; fase D construída localmente; fase E pendente)
 
 Decisões do usuário (2026-11-09):
 - Confirmação da retirada: **código de retirada por WhatsApp e assinatura na tela, os dois juntos**.

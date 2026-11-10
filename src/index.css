@@ -198,10 +198,29 @@ body {
   animation: pulso 0.9s var(--ease-saida) 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .varredura,
-  .esqueleto,
-  .pulso {
-    animation: none;
-  }
+:root[data-animacoes='reduzidas'] .varredura,
+:root[data-animacoes='reduzidas'] .esqueleto,
+:root[data-animacoes='reduzidas'] .pulso {
+  animation: none;
+}
+
+/* Holofote: brilho que segue o ponteiro (ver Holofote em Cinema.tsx). */
+.holofote {
+  position: relative;
+  transform-style: preserve-3d;
+  --mx: 50%;
+  --my: 50%;
+}
+.holofote::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(420px circle at var(--mx) var(--my), rgb(255 255 255 / 0.24), transparent 60%);
+}
+.holofote:hover::after {
+  opacity: 1;
 }

@@ -1,10 +1,13 @@
-import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Toaster, toast } from 'sonner'
 import { CapturaFoto, LeitorCodigo } from './components/Camera'
+import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cinema'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
-import { Cabecalho, Marca, Pagina } from './components/ui'
+import { Cabecalho, Pagina } from './components/ui'
+import { useAnimacao } from './lib/animacao'
+import { gsap, useGSAP } from './lib/gsap'
 import { dados, ErroEntrega, type Encomenda } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
@@ -40,54 +43,36 @@ function lerTurno(): string {
 }
 type Etapa = 'ocr' | 'busca'
 
-/** Abertura do app: marca com contador. Some assim que a sessão é conhecida. */
-function Abertura() {
-  const [valor, setValor] = useState(0)
-  useEffect(() => {
-    const controle = animate(0, 100, { duration: 0.9, ease: [0.16, 1, 0.3, 1], onUpdate: (v) => setValor(Math.round(v)) })
-    return () => controle.stop()
-  }, [])
-  return (
-    <main className="grid min-h-screen place-items-center" role="status" aria-label="Carregando">
-      <div className="flex flex-col items-center gap-4">
-        <div className="opacity-40" style={{ clipPath: 'inset(0)' }}>
-          <Marca />
-        </div>
-        <p className="rotulo num m-0">{valor}%</p>
-      </div>
-    </main>
-  )
-}
-
 function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; texto: string }) {
+  const raiz = useRef<HTMLDivElement>(null)
   const linhas = texto
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
     .slice(0, 5)
+  useGSAP(
+    () => {
+      if (etapa === 'busca') {
+        gsap.from('[data-lida]', { opacity: 0, x: -18, duration: 0.5, ease: 'expo.out', stagger: 0.07 })
+      }
+    },
+    { scope: raiz, dependencies: [etapa, linhas.length] },
+  )
   return (
     <Pagina className="md:max-w-xl">
       <Cabecalho titulo="Lendo a etiqueta" passo={2} />
-      <div role="status" className="space-y-4">
+      <div ref={raiz} role="status" className="space-y-4">
         <div className="tile cantos relative overflow-hidden !border-0 bg-black">
           {previa && <img src={previa} alt="" className="max-h-72 w-full object-contain md:max-h-96" />}
           <div className="varredura absolute inset-x-0 top-0 h-1 bg-accent shadow-[0_0_24px_4px_var(--accent)]" />
         </div>
-        <p className="m-0 text-lg font-semibold">
-          {etapa === 'ocr' ? 'Reconhecendo o texto…' : 'Procurando o morador…'}
-        </p>
+        <p className="m-0 text-lg font-semibold">{etapa === 'ocr' ? 'Reconhecendo o texto…' : 'Procurando o morador…'}</p>
         {etapa === 'busca' && !!linhas.length && (
           <ul className="num m-0 list-none space-y-1 p-0 text-sm text-muted">
             {linhas.map((l, i) => (
-              <motion.li
-                key={i}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05, duration: 0.2 }}
-                className="truncate"
-              >
+              <li key={i} data-lida className="truncate">
                 {l}
-              </motion.li>
+              </li>
             ))}
           </ul>
         )}
@@ -96,16 +81,16 @@ function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; 
   )
 }
 
-/** Troca de tela: deslize curto de 16 px com fade (200 ms). */
+/** Troca de tela: a cortina esconde a troca; aqui só um fade curto. */
 function Transicao({ id, children }: { id: string; children: ReactNode }) {
-  const reduzir = useReducedMotion()
+  const { reduzir } = useAnimacao()
   return (
     <motion.div
       key={id}
-      initial={{ opacity: 0, x: reduzir ? 0 : 16 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: reduzir ? 0 : -16 }}
-      transition={{ duration: reduzir ? 0.12 : 0.2, ease: [0.4, 0, 0.2, 1] }}
+      initial={{ opacity: 0, scale: reduzir ? 1 : 0.985 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reduzir ? 0.1 : 0.2, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
     </motion.div>
@@ -126,7 +111,17 @@ export default function App() {
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
   const [enviando, setEnviando] = useState(false)
-  const reduzir = useReducedMotion()
+  const { reduzir } = useAnimacao()
+  const reduzirRef = useRef(reduzir)
+  reduzirRef.current = reduzir
+  const cortina = useRef<CortinaApi>(null)
+  const [celebracao, setCelebracao] = useState<{ titulo: string; subtitulo: string } | null>(null)
+
+  /** Troca de tela com a cortina de faixas. */
+  const ir = useCallback((destino: Tela) => {
+    if (cortina.current) cortina.current.cobrir(() => setTela(destino))
+    else setTela(destino)
+  }, [])
 
   const proxima = useCallback(() => (lerTurno() ? 'inicio' : 'turno') as Tela, [])
 
@@ -142,13 +137,15 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    dados.sessaoAtiva().then((ok) => {
+    // Abertura cinematográfica: no mínimo 1,3 s, a não ser que as animações estejam desligadas.
+    const minimo = new Promise((ok) => setTimeout(ok, reduzirRef.current ? 0 : 1300))
+    Promise.all([dados.sessaoAtiva(), minimo]).then(([ok]) => {
       if (ok) {
-        setTela(proxima())
         carregar()
-      } else setTela('login')
+        ir(proxima())
+      } else ir('login')
     })
-  }, [carregar, proxima])
+  }, [carregar, proxima, ir])
 
   function novoRascunho(parcial: Partial<Rascunho>, texto = ''): Rascunho {
     const r = extrairDados(texto, moradores)
@@ -178,7 +175,7 @@ export default function App() {
     setPrevia(URL.createObjectURL(original))
     setEtapa('ocr')
     setTextoLido('')
-    setTela('lendo')
+    ir('lendo')
     setErro(null)
     const foto = await reduzirImagem(original).catch(() => original)
     let texto = ''
@@ -191,13 +188,13 @@ export default function App() {
     setEtapa('busca')
     if (!reduzir && texto) await new Promise((ok) => setTimeout(ok, 450))
     setRascunho(novoRascunho({ foto, fotoUrl: URL.createObjectURL(foto) }, texto))
-    setTela('conferir')
+    ir('conferir')
   }
 
   function processarCodigo(codigo: string) {
     const pareceRastreio = !/s/.test(codigo) && codigo.length >= 8 && codigo.length <= 30
     setRascunho(novoRascunho({ codigo, ...(pareceRastreio ? { rastreio: codigo.toUpperCase() } : {}) }, codigo))
-    setTela('conferir')
+    ir('conferir')
   }
 
   async function salvar(r: Rascunho & { morador: Morador }) {
@@ -229,7 +226,7 @@ export default function App() {
       await carregar()
       setNovoId(salva.id)
       setRascunho(null)
-      setTela('inicio')
+      ir('inicio')
       toast.success(
         salva.status === 'avisada'
           ? 'Encomenda salva. Aviso ao morador enviado (simulado).'
@@ -247,11 +244,11 @@ export default function App() {
     setEnviando(true)
     setErro(null)
     try {
+      const nome = entrega.destinatario_nome
       await dados.confirmarEntrega({ encomenda: entrega, entreguePor: turno, ...d })
       await carregar()
       setEntrega(null)
-      setTela('inicio')
-      toast.success('Entrega confirmada')
+      setCelebracao({ titulo: 'Entrega confirmada', subtitulo: `Entregue a ${nome}` })
     } catch (e) {
       setErro(mensagemErroEntrega(e))
     } finally {
@@ -280,7 +277,7 @@ export default function App() {
         return (
           <Login
             aoEntrar={() => {
-              setTela(proxima())
+              ir(proxima())
               carregar()
             }}
           />
@@ -295,7 +292,7 @@ export default function App() {
                 /* sem armazenamento: o nome vale só nesta sessão */
               }
               setTurno(nome)
-              setTela('inicio')
+              ir('inicio')
             }}
           />
         )
@@ -306,19 +303,19 @@ export default function App() {
             erro={erro}
             novoId={novoId}
             turno={turno}
-            aoNova={() => setTela('escolha')}
+            aoNova={() => ir('escolha')}
             aoEntregar={(e) => {
               setErro(null)
               setEntrega(e)
-              setTela('entrega')
+              ir('entrega')
             }}
-            aoTrocarTurno={() => setTela('turno')}
+            aoTrocarTurno={() => ir('turno')}
             aoRecarregar={carregar}
             aoSair={
               dados.precisaLogin
                 ? async () => {
                     await dados.sair()
-                    setTela('login')
+                    ir('login')
                   }
                 : undefined
             }
@@ -336,25 +333,25 @@ export default function App() {
             aoVoltar={() => {
               setErro(null)
               setEntrega(null)
-              setTela('inicio')
+              ir('inicio')
             }}
           />
         ) : null
       case 'escolha':
         return (
-          <Escolha aoFoto={() => setTela('foto')} aoCodigo={() => setTela('codigo')} aoVoltar={() => setTela('inicio')} />
+          <Escolha aoFoto={() => ir('foto')} aoCodigo={() => ir('codigo')} aoVoltar={() => ir('inicio')} />
         )
       case 'foto':
         return (
           <Pagina>
-            <Cabecalho titulo="Fotografar etiqueta" passo={2} voltar={() => setTela('escolha')} />
+            <Cabecalho titulo="Fotografar etiqueta" passo={2} voltar={() => ir('escolha')} />
             <CapturaFoto aoCapturar={processarFoto} />
           </Pagina>
         )
       case 'codigo':
         return (
           <Pagina>
-            <Cabecalho titulo="Escanear código" passo={2} voltar={() => setTela('escolha')} />
+            <Cabecalho titulo="Escanear código" passo={2} voltar={() => ir('escolha')} />
             <LeitorCodigo aoLer={processarCodigo} />
           </Pagina>
         )
@@ -371,7 +368,7 @@ export default function App() {
             aoCancelar={() => {
               setErro(null)
               setRascunho(null)
-              setTela('inicio')
+              ir('inicio')
             }}
           />
         ) : null
@@ -383,6 +380,15 @@ export default function App() {
       <AnimatePresence mode="wait" initial={false}>
         <Transicao id={tela}>{conteudo()}</Transicao>
       </AnimatePresence>
+      <Cortina ref={cortina} />
+      {celebracao && (
+        <Celebracao
+          titulo={celebracao.titulo}
+          subtitulo={celebracao.subtitulo}
+          aoMeio={() => setTela('inicio')}
+          aoFim={() => setCelebracao(null)}
+        />
+      )}
       <Toaster
         position="top-center"
         toastOptions={{

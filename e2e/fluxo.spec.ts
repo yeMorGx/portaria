@@ -17,6 +17,13 @@ async function etiqueta(page: Page, linhas: string[]) {
   return Buffer.from(base64, 'base64')
 }
 
+// Os testes rodam com animações desligadas para serem rápidos e determinísticos.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('portaria.animacoes')) localStorage.setItem('portaria.animacoes', 'desligadas')
+  })
+})
+
 async function comecarTurno(page: Page, nome = 'Carlos') {
   await page.goto('/')
   await page.getByRole('heading', { name: 'Quem está na portaria?' }).waitFor()
@@ -156,4 +163,14 @@ test('morador sem telefone: não há código, e a entrega só sai com justificat
   await page.getByLabel('Justificativa').fill('Morador sem telefone cadastrado')
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
   await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
+})
+
+test('controle de animações: liga, desliga e lembra a escolha', async ({ page }) => {
+  await comecarTurno(page)
+  await expect(page.locator('html')).toHaveAttribute('data-animacoes', 'reduzidas')
+  await page.getByRole('button', { name: 'Animações' }).click()
+  await page.getByRole('radio', { name: /Sempre animar/ }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-animacoes', 'completas')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-animacoes', 'completas')
 })
