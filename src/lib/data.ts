@@ -33,7 +33,6 @@ export interface Encomenda {
   recebido_por: string | null
   status: Status
   avisado_em: string | null
-  codigo_retirada_hash: string | null
   retirado_em: string | null
   retirado_por_nome: string | null
   entregue_por: string | null
@@ -73,6 +72,29 @@ export interface ConfirmarEntrega {
   entreguePor: string
 }
 
+export type MotivoErroEntrega =
+  | 'codigo_incorreto'
+  | 'bloqueado'
+  | 'expirado'
+  | 'codigo_usado'
+  | 'sem_codigo_gerado'
+  | 'ja_retirada'
+  | 'justificativa_curta'
+  | 'sem_assinatura'
+  | 'nao_encontrada'
+  | 'erro'
+
+/** Recusa da confirmação de entrega, com o motivo devolvido pelo servidor. */
+export class ErroEntrega extends Error {
+  motivo: MotivoErroEntrega
+  restantes?: number
+  constructor(motivo: MotivoErroEntrega, restantes?: number) {
+    super(motivo)
+    this.motivo = motivo
+    this.restantes = restantes
+  }
+}
+
 export interface DataSource {
   readonly modo: 'supabase' | 'demo'
   precisaLogin: boolean
@@ -82,6 +104,8 @@ export interface DataSource {
   listarMoradores(): Promise<Morador[]>
   listarEncomendas(): Promise<Encomenda[]>
   salvarEncomenda(e: NovaEncomenda): Promise<Encomenda>
+  /** Gera um código novo e avisa o morador (modo simulado). Devolve se houve aviso. */
+  reenviarCodigo(e: Encomenda): Promise<{ avisado: boolean }>
   confirmarEntrega(c: ConfirmarEntrega): Promise<Encomenda>
 }
 
@@ -93,19 +117,7 @@ function podeAvisar(m: Morador | null): boolean {
   return !!m?.telefone && !!m.consentimento_em
 }
 
-async function prepararAviso(id: string, morador: Morador | null) {
-  const codigo = gerarCodigo()
-  const hash = await hashCodigo(id, codigo)
-  guardarCodigoSimulado(id, codigo)
-  const avisar = podeAvisar(morador)
-  return {
-    codigo_retirada_hash: hash,
-    status: (avisar ? 'avisada' : 'recebida') as Status,
-    avisado_em: avisar ? new Date().toISOString() : null,
-  }
-}
-
-function linhaNova(e: NovaEncomenda, id: string, extra: Awaited<ReturnType<typeof prepararAviso>>) {
+function linhaNova(e: NovaEncomenda, id: string) {
   return {
     id,
     morador_id: e.morador?.id ?? null,
@@ -127,16 +139,33 @@ function linhaNova(e: NovaEncomenda, id: string, extra: Awaited<ReturnType<typeo
     codigo_lido: e.codigo_lido,
     recebido_por: e.recebido_por,
     entrega_sem_codigo: false,
-    ...extra,
   }
 }
 
 function criarSupabase(client: SupabaseClient): DataSource {
+  // Assinatura já enviada: se o código estiver errado e o porteiro tentar de novo, não envia outra cópia.
+  const assinaturasEnviadas = new WeakMap<Blob, string>()
+
   async function enviar(pasta: string, blob: Blob): Promise<string> {
     const caminho = `${pasta}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${blob.type === 'image/png' ? 'png' : 'jpg'}`
     const { error } = await client.storage.from('etiquetas').upload(caminho, blob, { contentType: blob.type || 'image/jpeg' })
     if (error) throw error
     return caminho
+  }
+
+  async function buscar(id: string): Promise<Encomenda> {
+    const { data, error } = await client.from('encomendas').select('*').eq('id', id).single()
+    if (error) throw error
+    return data as Encomenda
+  }
+
+  async function avisar(id: string): Promise<{ avisado: boolean }> {
+    const { data, error } = await client.rpc('avisar_morador', { p_encomenda: id })
+    if (error) throw error
+    const r = data as { ok: boolean; avisado?: boolean; codigo?: string }
+    // Modo simulado: o servidor devolve o código para a demonstração. Com provedor real ele não devolve.
+    if (r.codigo) guardarCodigoSimulado(id, r.codigo)
+    return { avisado: !!r.avisado }
   }
 
   return {
@@ -185,38 +214,33 @@ function criarSupabase(client: SupabaseClient): DataSource {
       const id = crypto.randomUUID()
       const foto_path = e.foto ? await enviar('etiquetas', e.foto) : null
       const foto_pacote_path = e.foto_pacote ? await enviar('pacotes', e.foto_pacote) : null
-      const extra = await prepararAviso(id, e.morador)
-      const { data, error } = await client
-        .from('encomendas')
-        .insert({ ...linhaNova(e, id, extra), foto_path, foto_pacote_path })
-        .select()
-        .single()
+      const { error } = await client.from('encomendas').insert({ ...linhaNova(e, id), foto_path, foto_pacote_path })
       if (error) throw error
-      return data as Encomenda
+      // O aviso não pode derrubar o recebimento: a encomenda já está gravada.
+      await avisar(id).catch(() => undefined)
+      return buscar(id)
+    },
+    reenviarCodigo(e) {
+      return avisar(e.id)
     },
     async confirmarEntrega(c) {
-      if (!c.semCodigo) {
-        const hash = await hashCodigo(c.encomenda.id, c.codigo)
-        if (hash !== c.encomenda.codigo_retirada_hash) throw new Error('Código incorreto.')
+      let caminho = assinaturasEnviadas.get(c.assinatura)
+      if (!caminho) {
+        caminho = await enviar('assinaturas', c.assinatura)
+        assinaturasEnviadas.set(c.assinatura, caminho)
       }
-      const assinatura_path = await enviar('assinaturas', c.assinatura)
-      const { data, error } = await client
-        .from('encomendas')
-        .update({
-          status: 'retirada',
-          retirado_em: new Date().toISOString(),
-          retirado_por_nome: c.encomenda.destinatario_nome,
-          entregue_por: c.entreguePor,
-          assinatura_path,
-          entrega_sem_codigo: c.semCodigo,
-          justificativa_sem_codigo: c.semCodigo ? c.justificativa : null,
-        })
-        .eq('id', c.encomenda.id)
-        .neq('status', 'retirada')
-        .select()
-        .single()
-      if (error) throw error
-      return data as Encomenda
+      const { data, error } = await client.rpc('confirmar_entrega', {
+        p_encomenda: c.encomenda.id,
+        p_codigo: c.semCodigo ? null : c.codigo,
+        p_sem_codigo: c.semCodigo,
+        p_justificativa: c.semCodigo ? c.justificativa : null,
+        p_assinatura_path: caminho,
+        p_entregue_por: c.entreguePor,
+      })
+      if (error) throw new ErroEntrega('erro')
+      const r = data as { ok: boolean; motivo?: MotivoErroEntrega; restantes?: number }
+      if (!r.ok) throw new ErroEntrega(r.motivo ?? 'erro', r.restantes)
+      return buscar(c.encomenda.id)
     },
   }
 }
@@ -232,6 +256,20 @@ function criarDemo(): DataSource {
     { id: '5', nome: 'Beatriz Lima Costa', apartamento: '505', bloco: 'B', telefone: '+5511999990505', consentimento_em: agora },
   ]
   const encomendas: Encomenda[] = []
+  // Mesma regra do servidor: hash do código, 5 tentativas e bloqueio.
+  const codigos = new Map<string, { hash: string; tentativas: number }>()
+
+  async function avisar(alvo: Encomenda): Promise<{ avisado: boolean }> {
+    const morador = moradores.find((m) => m.id === alvo.morador_id) ?? null
+    if (!podeAvisar(morador)) return { avisado: false }
+    const codigo = gerarCodigo()
+    codigos.set(alvo.id, { hash: await hashCodigo(alvo.id, codigo), tentativas: 0 })
+    guardarCodigoSimulado(alvo.id, codigo)
+    alvo.status = 'avisada'
+    alvo.avisado_em = new Date().toISOString()
+    return { avisado: true }
+  }
+
   return {
     modo: 'demo',
     precisaLogin: false,
@@ -242,14 +280,15 @@ function criarDemo(): DataSource {
     listarEncomendas: async () => [...encomendas],
     async salvarEncomenda(e) {
       const id = crypto.randomUUID()
-      const extra = await prepararAviso(id, e.morador)
       const nova: Encomenda = {
-        ...linhaNova(e, id, extra),
+        ...linhaNova(e, id),
         foto_path: null,
         foto_url: e.foto ? URL.createObjectURL(e.foto) : null,
         foto_pacote_path: null,
         foto_pacote_url: e.foto_pacote ? URL.createObjectURL(e.foto_pacote) : null,
         recebido_em: new Date().toISOString(),
+        status: 'recebida',
+        avisado_em: null,
         retirado_em: null,
         retirado_por_nome: null,
         entregue_por: null,
@@ -257,14 +296,28 @@ function criarDemo(): DataSource {
         justificativa_sem_codigo: null,
       }
       encomendas.unshift(nova)
+      await avisar(nova)
       return nova
+    },
+    async reenviarCodigo(e) {
+      const alvo = encomendas.find((x) => x.id === e.id)
+      return alvo ? avisar(alvo) : { avisado: false }
     },
     async confirmarEntrega(c) {
       const alvo = encomendas.find((x) => x.id === c.encomenda.id)
-      if (!alvo) throw new Error('Encomenda não encontrada.')
-      if (!c.semCodigo) {
-        const hash = await hashCodigo(alvo.id, c.codigo)
-        if (hash !== alvo.codigo_retirada_hash) throw new Error('Código incorreto.')
+      if (!alvo) throw new ErroEntrega('nao_encontrada')
+      if (alvo.status === 'retirada') throw new ErroEntrega('ja_retirada')
+      if (c.semCodigo) {
+        if (c.justificativa.trim().length < 5) throw new ErroEntrega('justificativa_curta')
+      } else {
+        const reg = codigos.get(alvo.id)
+        if (!reg) throw new ErroEntrega('sem_codigo_gerado')
+        if (reg.tentativas >= 5) throw new ErroEntrega('bloqueado')
+        if ((await hashCodigo(alvo.id, c.codigo)) !== reg.hash) {
+          reg.tentativas += 1
+          throw new ErroEntrega('codigo_incorreto', Math.max(5 - reg.tentativas, 0))
+        }
+        codigos.delete(alvo.id)
       }
       Object.assign(alvo, {
         status: 'retirada' as Status,

@@ -5,13 +5,32 @@ import { CapturaFoto, LeitorCodigo } from './components/Camera'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Cabecalho, Marca, Pagina } from './components/ui'
-import { dados, type Encomenda } from './lib/data'
+import { dados, ErroEntrega, type Encomenda } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
 
 type Tela = 'carregando' | 'login' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
 
 const CHAVE_TURNO = 'portaria.turno'
+function mensagemErroEntrega(e: unknown): string {
+  if (!(e instanceof ErroEntrega)) return 'Não foi possível confirmar a entrega. Tente novamente.'
+  switch (e.motivo) {
+    case 'codigo_incorreto':
+      return `Código incorreto. Restam ${e.restantes ?? 0} tentativa(s).`
+    case 'bloqueado':
+      return 'Muitas tentativas erradas. Aguarde 15 minutos ou use “Morador sem o código”.'
+    case 'expirado':
+      return 'Este código expirou. Reenvie o código ao morador.'
+    case 'codigo_usado':
+    case 'sem_codigo_gerado':
+      return 'Este pedido não tem código válido. Reenvie o código ou use “Morador sem o código”.'
+    case 'ja_retirada':
+      return 'Esta encomenda já foi entregue.'
+    default:
+      return 'Não foi possível confirmar a entrega. Tente novamente.'
+  }
+}
+
 function lerTurno(): string {
   try {
     return localStorage.getItem(CHAVE_TURNO) ?? ''
@@ -234,9 +253,22 @@ export default function App() {
       setTela('inicio')
       toast.success('Entrega confirmada')
     } catch (e) {
-      setErro(e instanceof Error && e.message === 'Código incorreto.' ? 'Código incorreto. Peça o código ao morador e tente de novo.' : 'Não foi possível confirmar a entrega. Tente novamente.')
+      setErro(mensagemErroEntrega(e))
     } finally {
       setEnviando(false)
+    }
+  }
+
+  async function reenviarCodigo() {
+    if (!entrega) return
+    try {
+      const r = await dados.reenviarCodigo(entrega)
+      toast[r.avisado ? 'success' : 'message'](
+        r.avisado ? 'Código novo enviado ao morador (simulado).' : 'Morador sem telefone ou consentimento: não há como enviar.',
+      )
+      setErro(null)
+    } catch {
+      toast.error('Não foi possível reenviar o código.')
     }
   }
 
@@ -300,6 +332,7 @@ export default function App() {
             enviando={enviando}
             erro={erro}
             aoConfirmar={confirmarEntrega}
+            aoReenviar={reenviarCodigo}
             aoVoltar={() => {
               setErro(null)
               setEntrega(null)

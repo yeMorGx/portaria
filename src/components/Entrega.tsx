@@ -97,6 +97,7 @@ export function Entrega({
   enviando,
   erro,
   aoConfirmar,
+  aoReenviar,
   aoVoltar,
 }: {
   encomenda: Encomenda
@@ -104,6 +105,7 @@ export function Entrega({
   enviando: boolean
   erro: string | null
   aoConfirmar: (d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob }) => void
+  aoReenviar: () => void
   aoVoltar: () => void
 }) {
   const [codigo, setCodigo] = useState('')
@@ -168,13 +170,24 @@ export function Entrega({
                 />
               </>
             )}
-            <button
-              type="button"
-              onClick={() => setSemCodigo((x) => !x)}
-              className="min-h-11 cursor-pointer self-start text-sm font-medium text-accent hover:underline"
-            >
-              {semCodigo ? 'Voltar a pedir o código' : 'Morador sem o código'}
-            </button>
+            <div className="flex flex-wrap gap-x-6">
+              <button
+                type="button"
+                onClick={() => setSemCodigo((x) => !x)}
+                className="min-h-11 cursor-pointer text-sm font-medium text-accent hover:underline"
+              >
+                {semCodigo ? 'Voltar a pedir o código' : 'Morador sem o código'}
+              </button>
+              {!semCodigo && (
+                <button
+                  type="button"
+                  onClick={aoReenviar}
+                  className="min-h-11 cursor-pointer text-sm font-medium text-accent hover:underline"
+                >
+                  Reenviar código ao morador
+                </button>
+              )}
+            </div>
             {dica && !semCodigo && (
               <p data-testid="codigo-simulado" className="num m-0 rounded-campo bg-accent-soft px-3 py-2 text-sm">
                 MODO SIMULADO · código enviado ao morador: {dica}
