@@ -198,6 +198,22 @@ body {
   animation: pulso 0.9s var(--ease-saida) 1;
 }
 
+@keyframes pulsar {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+.pulsar {
+  animation: pulsar 1.4s ease-in-out infinite;
+}
+
+:root[data-animacoes='reduzidas'] .pulsar,
 :root[data-animacoes='reduzidas'] .varredura,
 :root[data-animacoes='reduzidas'] .esqueleto,
 :root[data-animacoes='reduzidas'] .pulso {

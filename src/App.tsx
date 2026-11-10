@@ -41,6 +41,19 @@ function lerTurno(): string {
     return ''
   }
 }
+const ORDEM: Record<Tela, number> = {
+  carregando: -1,
+  login: 0,
+  turno: 0,
+  inicio: 1,
+  escolha: 2,
+  entrega: 2,
+  foto: 3,
+  codigo: 3,
+  lendo: 4,
+  conferir: 5,
+}
+
 type Etapa = 'ocr' | 'busca'
 
 function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; texto: string }) {
@@ -81,16 +94,23 @@ function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; 
   )
 }
 
-/** Troca de tela: a cortina esconde a troca; aqui só um fade curto. */
-function Transicao({ id, children }: { id: string; children: ReactNode }) {
+/** Troca de tela do dia a dia: deslize curto na direção do fluxo, com fade. */
+function Transicao({ id, direcao, children }: { id: string; direcao: 1 | -1; children: ReactNode }) {
   const { reduzir } = useAnimacao()
+  const dx = reduzir ? 0 : 36
   return (
     <motion.div
       key={id}
-      initial={{ opacity: 0, scale: reduzir ? 1 : 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: reduzir ? 0.1 : 0.2, ease: [0.16, 1, 0.3, 1] }}
+      custom={direcao}
+      variants={{
+        entra: (d: number) => ({ opacity: 0, x: dx * d }),
+        fica: { opacity: 1, x: 0 },
+        sai: (d: number) => ({ opacity: 0, x: -dx * d }),
+      }}
+      initial="entra"
+      animate="fica"
+      exit="sai"
+      transition={{ duration: reduzir ? 0.1 : 0.24, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
     </motion.div>
@@ -117,9 +137,17 @@ export default function App() {
   const cortina = useRef<CortinaApi>(null)
   const [celebracao, setCelebracao] = useState<{ titulo: string; subtitulo: string } | null>(null)
 
-  /** Troca de tela com a cortina de faixas. */
-  const ir = useCallback((destino: Tela) => {
-    if (cortina.current) cortina.current.cobrir(() => setTela(destino))
+  const [direcao, setDirecao] = useState<1 | -1>(1)
+  const telaAtual = useRef<Tela>('carregando')
+
+  /**
+   * Troca de tela. A cortina de faixas fica só para os momentos de entrada (abertura, login, início do turno);
+   * no dia a dia a troca é um deslize curto, para frente ou para trás.
+   */
+  const ir = useCallback((destino: Tela, opcoes?: { cortina?: boolean }) => {
+    setDirecao(ORDEM[destino] >= ORDEM[telaAtual.current] ? 1 : -1)
+    telaAtual.current = destino
+    if (opcoes?.cortina && cortina.current) cortina.current.cobrir(() => setTela(destino))
     else setTela(destino)
   }, [])
 
@@ -142,8 +170,8 @@ export default function App() {
     Promise.all([dados.sessaoAtiva(), minimo]).then(([ok]) => {
       if (ok) {
         carregar()
-        ir(proxima())
-      } else ir('login')
+        ir(proxima(), { cortina: true })
+      } else ir('login', { cortina: true })
     })
   }, [carregar, proxima, ir])
 
@@ -277,7 +305,7 @@ export default function App() {
         return (
           <Login
             aoEntrar={() => {
-              ir(proxima())
+              ir(proxima(), { cortina: true })
               carregar()
             }}
           />
@@ -292,7 +320,7 @@ export default function App() {
                 /* sem armazenamento: o nome vale só nesta sessão */
               }
               setTurno(nome)
-              ir('inicio')
+              ir('inicio', { cortina: true })
             }}
           />
         )
@@ -377,8 +405,10 @@ export default function App() {
 
   return (
     <>
-      <AnimatePresence mode="wait" initial={false}>
-        <Transicao id={tela}>{conteudo()}</Transicao>
+      <AnimatePresence mode="wait" initial={false} custom={direcao}>
+        <Transicao id={tela} direcao={direcao}>
+          {conteudo()}
+        </Transicao>
       </AnimatePresence>
       <Cortina ref={cortina} />
       {celebracao && (

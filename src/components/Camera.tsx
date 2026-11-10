@@ -2,6 +2,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser'
 import { Camera as IconeCamera, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Aviso, Botao } from './ui'
+import { Visor, type VisorApi } from './Visor'
 
 async function abrirCamera(video: HTMLVideoElement): Promise<MediaStream> {
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -13,21 +14,10 @@ async function abrirCamera(video: HTMLVideoElement): Promise<MediaStream> {
   return stream
 }
 
-/** Moldura da câmera com marcas "+" nos cantos e linha guia central. */
-function Moldura({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="tile cantos overflow-hidden !border-0 bg-black">
-      <div className="relative aspect-[4/3] bg-black md:aspect-video">
-        {children}
-        <div aria-hidden className="pointer-events-none absolute inset-x-[12%] top-1/2 h-px bg-white/40" />
-      </div>
-    </div>
-  )
-}
-
 /** Câmera para fotografar a etiqueta. Também aceita enviar um arquivo de imagem. */
 export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const visor = useRef<VisorApi>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [pronta, setPronta] = useState(false)
 
@@ -50,19 +40,21 @@ export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }
     }
   }, [])
 
-  function fotografar() {
+  async function fotografar() {
     const v = videoRef.current!
+    // Congela o quadro antes do flash, para a foto ser a imagem do instante do toque.
     const c = document.createElement('canvas')
     c.width = v.videoWidth
     c.height = v.videoHeight
     c.getContext('2d')!.drawImage(v, 0, 0)
+    await visor.current?.flash()
     c.toBlob((b) => b && aoCapturar(b), 'image/jpeg', 0.9)
   }
 
   return (
     <div className="space-y-4">
       {erro && <Aviso>{erro}</Aviso>}
-      <Moldura>
+      <Visor ref={visor} modo="foto" dica="Enquadre a etiqueta dentro da moldura">
         <video
           ref={videoRef}
           muted
@@ -70,7 +62,7 @@ export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }
           className="absolute inset-0 size-full object-cover"
           data-testid="video-foto"
         />
-      </Moldura>
+      </Visor>
       <div className="flex flex-col gap-3 md:flex-row">
         <Botao grande onClick={fotografar} disabled={!pronta} className="md:flex-1">
           <IconeCamera className="size-6" strokeWidth={1.75} />
@@ -95,6 +87,7 @@ export function CapturaFoto({ aoCapturar }: { aoCapturar: (foto: Blob) => void }
 /** Leitor de código de barras e QR Code usando a câmera. */
 export function LeitorCodigo({ aoLer }: { aoLer: (texto: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const visor = useRef<VisorApi>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [manual, setManual] = useState('')
 
@@ -107,7 +100,9 @@ export function LeitorCodigo({ aoLer }: { aoLer: (texto: string) => void }) {
         if (resultado && !cancelado) {
           cancelado = true
           c.stop()
-          aoLer(resultado.getText())
+          const texto = resultado.getText()
+          // Trava no alvo antes de seguir para a conferência.
+          void (visor.current?.travar() ?? Promise.resolve()).then(() => aoLer(texto))
         }
       })
       .then((c) => {
@@ -125,9 +120,9 @@ export function LeitorCodigo({ aoLer }: { aoLer: (texto: string) => void }) {
   return (
     <div className="space-y-4">
       {erro && <Aviso>{erro}</Aviso>}
-      <Moldura>
+      <Visor ref={visor} modo="codigo" dica="Procurando código de barras ou QR Code…">
         <video ref={videoRef} muted playsInline className="absolute inset-0 size-full object-cover" />
-      </Moldura>
+      </Visor>
       <p className="m-0 text-muted">Aponte o código de barras ou QR Code da etiqueta para a câmera.</p>
       <form
         className="flex flex-col gap-3 md:flex-row"
