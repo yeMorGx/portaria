@@ -82,3 +82,20 @@ Cada fase termina com commit; push só com o seu ok.
 - Assinatura na tela tem valor de registro, não de prova jurídica; para o cliente isso precisa estar claro.
 - O WhatsApp real exige consentimento, modelo de mensagem aprovado e custo por mensagem.
 - A migração altera o banco de teste. Antes, mostro o SQL e espero o seu ok.
+
+## Backlog
+
+### Rastreamento do entregador por andar (2026-11-11)
+Pergunta do usuário: detectar em tempo real o andar em que o entregador está.
+
+Decisões em aberto, deixadas para depois:
+- **Sensor de pressão (barômetro):** precisão de andar, mas exige app nativo no celular do entregador e calibração no térreo.
+- **GPS:** serve só para saber que chegou ao prédio (erro vertical de 10 a 30 m).
+- **Beacons Bluetooth ou Wi-Fi por andar:** precisão boa, exige hardware em cada andar e app do entregador.
+- **Confirmação por código na recepção da empresa:** recomendada pela conversa, reaproveita o código de retirada. Prova dada por pessoa identificada, sem hardware.
+- **QR fixo:** descartado, pode ser fotografado e usado de qualquer lugar.
+- **QR dinâmico (troca a cada 30 s):** complemento possível, com limite.
+
+Pontos de privacidade a tratar se o rastreamento avançar: consentimento, prazo para apagar o histórico e acordo com a empresa contratante (localização de pessoa é dado sensível).
+
+Escopo: produto novo, fora do plano atual. Reavaliar depois da Fase E e de demanda real.
