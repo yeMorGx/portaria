@@ -6,13 +6,14 @@ import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cin
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Botao, Cabecalho, Pagina } from './components/ui'
+import { Cadastro } from './components/Cadastro'
 import { useAnimacao } from './lib/animacao'
 import { gsap, useGSAP } from './lib/gsap'
 import { dados, ErroEntrega, type Encomenda, type Perfil } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
 
-type Tela = 'carregando' | 'login' | 'semacesso' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
+type Tela = 'carregando' | 'login' | 'semacesso' | 'cadastro' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
 
 const CHAVE_TURNO = 'portaria.turno'
 function mensagemErroEntrega(e: unknown): string {
@@ -45,6 +46,7 @@ const ORDEM: Record<Tela, number> = {
   carregando: -1,
   login: 0,
   semacesso: 0,
+  cadastro: 0,
   turno: 0,
   inicio: 1,
   escolha: 2,
@@ -330,6 +332,8 @@ export default function App() {
             aoEntrar={() => void entrarNoApp()}
           />
         )
+      case 'cadastro':
+        return perfil ? <Cadastro predioId={perfil.predio_id} aoVoltar={() => ir('inicio')} /> : null
       case 'semacesso':
         return (
           <Pagina className="flex min-h-screen flex-col justify-center md:max-w-lg">
@@ -377,6 +381,7 @@ export default function App() {
               ir('entrega')
             }}
             aoTrocarTurno={perfil ? undefined : () => ir('turno')}
+            aoCadastro={perfil && (perfil.papel === 'sindico' || perfil.papel === 'administradora') ? () => ir('cadastro') : undefined}
             aoRecarregar={carregar}
             aoSair={
               dados.precisaLogin

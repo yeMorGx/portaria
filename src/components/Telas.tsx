@@ -154,6 +154,7 @@ export function Inicio({
   aoTrocarTurno,
   aoSair,
   aoRecarregar,
+  aoCadastro,
 }: {
   encomendas: Encomenda[] | null
   erro: string | null
@@ -163,6 +164,7 @@ export function Inicio({
   aoEntregar: (e: Encomenda) => void
   aoTrocarTurno?: () => void
   aoSair?: () => void
+  aoCadastro?: () => void
   aoRecarregar: () => void
 }) {
   const [aba, setAba] = useState<Aba>('aguardando')
@@ -192,6 +194,11 @@ export function Inicio({
         <Marca />
         <div className="flex items-center gap-1">
           <ControleAnimacao />
+          {aoCadastro && (
+            <Botao variante="fantasma" onClick={aoCadastro} className="!min-h-11 !gap-2 !px-3">
+              Cadastro
+            </Botao>
+          )}
           {aoTrocarTurno && (
             <Botao variante="fantasma" onClick={aoTrocarTurno} className="!min-h-11 !gap-2 !px-3" aria-label="Trocar turno">
               <UserRound className="size-5" strokeWidth={1.75} />

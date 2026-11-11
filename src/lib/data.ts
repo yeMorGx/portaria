@@ -102,6 +102,29 @@ export interface Perfil {
   predio_id: string
 }
 
+export interface Empresa {
+  id: string
+  predio_id: string
+  nome: string
+  cnpj: string | null
+  andar: string | null
+  sala: string | null
+  responsavel_nome: string | null
+  responsavel_contato: string | null
+  ativo: boolean
+}
+
+export interface Destinatario {
+  id: string
+  empresa_id: string
+  nome: string
+  tipo: 'pessoa' | 'setor'
+  ativo: boolean
+}
+
+export type EmpresaEntrada = Omit<Empresa, 'id' | 'predio_id'> & { id?: string }
+export type DestinatarioEntrada = Omit<Destinatario, 'id' | 'empresa_id'> & { id?: string }
+
 export interface DataSource {
   readonly modo: 'supabase' | 'demo'
   precisaLogin: boolean
@@ -111,6 +134,11 @@ export interface DataSource {
   entrar(email: string, senha: string): Promise<void>
   sair(): Promise<void>
   listarMoradores(): Promise<Morador[]>
+  /** Cadastro de empresas e destinatários (síndico e administradora). */
+  listarEmpresas(): Promise<Empresa[]>
+  salvarEmpresa(e: EmpresaEntrada, predioId: string): Promise<Empresa>
+  listarDestinatarios(empresaId: string): Promise<Destinatario[]>
+  salvarDestinatario(d: DestinatarioEntrada, empresaId: string): Promise<Destinatario>
   listarEncomendas(): Promise<Encomenda[]>
   salvarEncomenda(e: NovaEncomenda): Promise<Encomenda>
   /** Gera um código novo e avisa o morador (modo simulado). Devolve se houve aviso. */
@@ -204,6 +232,34 @@ function criarSupabase(client: SupabaseClient): DataSource {
     async sair() {
       await client.auth.signOut()
     },
+    async listarEmpresas() {
+      const { data, error } = await client.from('empresas').select('*').order('nome')
+      if (error) throw error
+      return data as Empresa[]
+    },
+    async salvarEmpresa(e, predioId) {
+      const { id, ...campos } = e
+      const q = id
+        ? client.from('empresas').update(campos).eq('id', id).select().single()
+        : client.from('empresas').insert({ ...campos, predio_id: predioId }).select().single()
+      const { data, error } = await q
+      if (error) throw error
+      return data as Empresa
+    },
+    async listarDestinatarios(empresaId) {
+      const { data, error } = await client.from('destinatarios').select('*').eq('empresa_id', empresaId).order('nome')
+      if (error) throw error
+      return data as Destinatario[]
+    },
+    async salvarDestinatario(dest, empresaId) {
+      const { id, ...campos } = dest
+      const q = id
+        ? client.from('destinatarios').update(campos).eq('id', id).select().single()
+        : client.from('destinatarios').insert({ ...campos, empresa_id: empresaId }).select().single()
+      const { data, error } = await q
+      if (error) throw error
+      return data as Destinatario
+    },
     async listarMoradores() {
       const { data, error } = await client
         .from('moradores')
@@ -269,6 +325,13 @@ function criarSupabase(client: SupabaseClient): DataSource {
 
 /** Modo demonstração: dados em memória, sem login. Usado quando o Supabase não está configurado. */
 function criarDemo(): DataSource {
+  const empresasDemo: Empresa[] = [
+    { id: '22222222-2222-2222-2222-222222222222', predio_id: '11111111-1111-1111-1111-111111111111', nome: 'Empresa de teste', cnpj: null, andar: '1', sala: '101', responsavel_nome: null, responsavel_contato: null, ativo: true },
+  ]
+  const destinatariosDemo: Destinatario[] = [
+    { id: 'd1', empresa_id: '22222222-2222-2222-2222-222222222222', nome: 'Maria Fernanda Oliveira', tipo: 'pessoa', ativo: true },
+    { id: 'd2', empresa_id: '22222222-2222-2222-2222-222222222222', nome: 'Financeiro', tipo: 'setor', ativo: true },
+  ]
   const agora = new Date().toISOString()
   const moradores: Morador[] = [
     { id: '1', nome: 'João Carlos da Silva', apartamento: '101', bloco: 'A', telefone: '+5511999990101', consentimento_em: agora },
@@ -300,6 +363,30 @@ function criarDemo(): DataSource {
     entrar: async () => {},
     sair: async () => {},
     listarMoradores: async () => moradores,
+    listarEmpresas: async () => [...empresasDemo],
+    async salvarEmpresa(e, predioId) {
+      if (e.id) {
+        const alvo = empresasDemo.find((x) => x.id === e.id)
+        if (!alvo) throw new Error('Empresa não encontrada.')
+        Object.assign(alvo, e)
+        return alvo
+      }
+      const nova: Empresa = { ...e, id: crypto.randomUUID(), predio_id: predioId }
+      empresasDemo.push(nova)
+      return nova
+    },
+    listarDestinatarios: async (empresaId) => destinatariosDemo.filter((x) => x.empresa_id === empresaId),
+    async salvarDestinatario(dest, empresaId) {
+      if (dest.id) {
+        const alvo = destinatariosDemo.find((x) => x.id === dest.id)
+        if (!alvo) throw new Error('Destinatário não encontrado.')
+        Object.assign(alvo, dest)
+        return alvo
+      }
+      const novo: Destinatario = { ...dest, id: crypto.randomUUID(), empresa_id: empresaId }
+      destinatariosDemo.push(novo)
+      return novo
+    },
     listarEncomendas: async () => [...encomendas],
     async salvarEncomenda(e) {
       const id = crypto.randomUUID()
