@@ -43,6 +43,13 @@ async function assinar(page: Page) {
   await page.mouse.up()
 }
 
+// Escolhe a empresa e, se houver, o destinatário na conferência.
+async function escolherEmpresa(page: Page, destinatario?: string) {
+  await page.getByRole('combobox', { name: 'Empresa' }).click()
+  await page.getByRole('option', { name: /Empresa de teste/ }).click()
+  if (destinatario) await page.getByRole('radio', { name: destinatario }).click()
+}
+
 test('recebe por foto, completa o pedido e entrega com código e assinatura', async ({ page }) => {
   await comecarTurno(page)
   await expect(page.getByText('Nenhuma encomenda aguardando')).toBeVisible()
@@ -50,15 +57,14 @@ test('recebe por foto, completa o pedido e entrega com código e assinatura', as
 
   await page.getByRole('button', { name: 'Nova Encomenda' }).click()
   await page.getByRole('button', { name: /Fotografar etiqueta/ }).click()
-  const png = await etiqueta(page, ['CORREIOS SEDEX AB123456789BR', 'Maria Fernanda Oliveira', 'APTO 202'])
+  const png = await etiqueta(page, ['CORREIOS SEDEX', 'Empresa de teste', 'Sala 101'])
   await page.getByTestId('arquivo-foto').setInputFiles({ name: 'etiqueta.png', mimeType: 'image/png', buffer: png })
 
   await expect(page.getByRole('heading', { name: 'Conferir encomenda' })).toBeVisible({ timeout: 90_000 })
-  await expect(page.getByRole('combobox', { name: 'Morador' })).toContainText('Maria Fernanda Oliveira')
-  await expect(page.getByTestId('apto')).toHaveText('202')
-  await expect(page.getByRole('radio', { name: 'Correios' })).toBeChecked()
+  await expect(page.getByRole('combobox', { name: 'Empresa' })).toContainText('Empresa de teste')
+  await expect(page.getByRole('radio', { name: 'Correios', exact: true })).toBeChecked()
+  await page.getByRole('radio', { name: 'Maria Fernanda Oliveira' }).click()
 
-  // Completa o pedido: loja, tipo, volumes, condição e local de guarda.
   await page.getByRole('radio', { name: 'Shopee', exact: true }).first().click()
   await page.getByRole('radio', { name: 'Envelope' }).click()
   await page.getByRole('button', { name: 'Aumentar' }).click()
@@ -74,13 +80,12 @@ test('recebe por foto, completa o pedido e entrega com código e assinatura', as
   await expect(lista).toContainText('Comprado em Shopee')
   await expect(page.getByTestId('contador-aguardando')).toHaveText('1')
 
-  // Entrega: código do morador + assinatura.
+  // Sem telefone de contato na empresa, não há código: a entrega sai só com justificativa.
   await page.getByRole('button', { name: /Entregar para Maria Fernanda/ }).click()
   await expect(page.getByRole('heading', { name: 'Entregar ao morador' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Confirmar entrega' })).toBeDisabled()
-  const dica = (await page.getByTestId('codigo-simulado').textContent())!
-  const codigo = dica.match(/(\d{6})/)![1]
-  await page.getByLabel('Código de retirada').fill(codigo)
+  await page.getByRole('button', { name: 'Morador sem o código' }).click()
+  await page.getByLabel('Justificativa').fill('Entregue na recepção da empresa')
   await assinar(page)
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
 
@@ -89,80 +94,36 @@ test('recebe por foto, completa o pedido e entrega com código e assinatura', as
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 })
 
-test('seleção manual do morador quando o código lido não identifica', async ({ page }) => {
+test('seleção manual da empresa quando a etiqueta não identifica', async ({ page }) => {
   await comecarTurno(page)
   await page.getByRole('button', { name: 'Nova Encomenda' }).click()
   await page.getByRole('button', { name: /Escanear código/ }).click()
   await page.getByLabel('Código digitado').fill('XYZ123456BR')
   await page.getByRole('button', { name: 'Usar código' }).click()
 
-  await expect(page.getByText('Não foi possível identificar o morador')).toBeVisible()
+  await expect(page.getByText('Não foi possível identificar a empresa')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Salvar Encomenda' })).toBeDisabled()
-  await page.getByRole('combobox', { name: 'Morador' }).click()
-  await page.getByRole('option', { name: /José Almeida/ }).click()
-  await expect(page.getByLabel('Código de rastreio')).toHaveValue('XYZ123456BR')
+  await escolherEmpresa(page, 'Financeiro')
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
-  await expect(page.getByTestId('lista')).toContainText('José Almeida')
+  await expect(page.getByTestId('lista')).toContainText('Financeiro')
 })
 
-async function receberPorCodigo(page: Page, morador: RegExp) {
+test('código de retirada: errado é recusado com tentativas restantes', async ({ page }) => {
+  await comecarTurno(page)
   await page.getByRole('button', { name: 'Nova Encomenda' }).click()
   await page.getByRole('button', { name: /Escanear código/ }).click()
   await page.getByLabel('Código digitado').fill('AB123456789BR')
   await page.getByRole('button', { name: 'Usar código' }).click()
-  await page.getByRole('combobox', { name: 'Morador' }).click()
-  await page.getByRole('option', { name: morador }).click()
+  await escolherEmpresa(page, 'Maria Fernanda Oliveira')
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
-}
+  await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 
-test('entrega: código errado é recusado com tentativas restantes; sem código exige justificativa', async ({ page }) => {
-  await comecarTurno(page)
-  await receberPorCodigo(page, /José Almeida/)
-  await expect(page.getByText(/Aviso ao morador enviado/)).toBeVisible()
-
-  await page.getByRole('button', { name: /Entregar para José/ }).click()
-  await expect(page.getByTestId('codigo-simulado')).toBeVisible()
-  await page.getByLabel('Código de retirada').fill('000000')
-  await assinar(page)
-  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByRole('alert')).toContainText('Código incorreto')
-  await expect(page.getByRole('alert')).toContainText('4 tentativa')
-
-  await page.getByRole('button', { name: 'Morador sem o código' }).click()
-  await expect(page.getByRole('button', { name: 'Confirmar entrega' })).toBeDisabled()
-  await page.getByLabel('Justificativa').fill('Morador esqueceu o celular')
-  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
-})
-
-test('entrega: após 5 códigos errados o código fica bloqueado', async ({ page }) => {
-  await comecarTurno(page)
-  await receberPorCodigo(page, /Beatriz Lima/)
-  await page.getByRole('button', { name: /Entregar para Beatriz/ }).click()
-  await page.getByLabel('Código de retirada').fill('000000')
-  await assinar(page)
-  for (let n = 0; n < 5; n++) await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByRole('alert')).toContainText('Código incorreto. Restam 0')
-  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByRole('alert')).toContainText('Muitas tentativas')
-})
-
-test('morador sem telefone: não há código, e a entrega só sai com justificativa', async ({ page }) => {
-  await comecarTurno(page)
-  await receberPorCodigo(page, /Ana Paula Souza/)
-  await expect(page.getByText(/sem telefone ou consentimento/)).toBeVisible()
-
-  await page.getByRole('button', { name: /Entregar para Ana Paula/ }).click()
-  await expect(page.getByTestId('codigo-simulado')).toHaveCount(0)
+  // A empresa de teste não tem contato cadastrado, então não há código gerado: o servidor recusa a conferência.
+  await page.getByRole('button', { name: /Entregar para Maria Fernanda/ }).click()
   await page.getByLabel('Código de retirada').fill('123456')
   await assinar(page)
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
   await expect(page.getByRole('alert')).toContainText('não tem código válido')
-
-  await page.getByRole('button', { name: 'Morador sem o código' }).click()
-  await page.getByLabel('Justificativa').fill('Morador sem telefone cadastrado')
-  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
 })
 
 test('controle de animações: liga, desliga e lembra a escolha', async ({ page }) => {

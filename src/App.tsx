@@ -9,9 +9,9 @@ import { Botao, Cabecalho, Pagina } from './components/ui'
 import { Cadastro } from './components/Cadastro'
 import { useAnimacao } from './lib/animacao'
 import { gsap, useGSAP } from './lib/gsap'
-import { dados, ErroEntrega, type Encomenda, type Perfil } from './lib/data'
+import { dados, ErroEntrega, type Empresa, type Encomenda, type Perfil } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
-import { extrairDados, type Morador } from './lib/parser'
+import { extrairDados, normalizar, type Morador } from './lib/parser'
 
 type Tela = 'carregando' | 'login' | 'semacesso' | 'cadastro' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
 
@@ -58,6 +58,17 @@ const ORDEM: Record<Tela, number> = {
 }
 
 type Etapa = 'ocr' | 'busca'
+
+/** Empresa cujo nome aparece no texto lido da etiqueta (ignora acento e caixa). */
+function empresaNoTexto(texto: string, empresas: Empresa[]): Empresa | null {
+  const alvo = ` ${normalizar(texto)} `
+  let melhor: Empresa | null = null
+  for (const e of empresas) {
+    const nome = normalizar(e.nome)
+    if (nome.length >= 3 && alvo.includes(` ${nome} `) && (!melhor || nome.length > normalizar(melhor.nome).length)) melhor = e
+  }
+  return melhor
+}
 
 function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; texto: string }) {
   const raiz = useRef<HTMLDivElement>(null)
@@ -124,6 +135,7 @@ export default function App() {
   const [tela, setTela] = useState<Tela>('carregando')
   const [encomendas, setEncomendas] = useState<Encomenda[] | null>(null)
   const [moradores, setMoradores] = useState<Morador[]>([])
+  const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -159,9 +171,10 @@ export default function App() {
   const carregar = useCallback(async () => {
     try {
       setErro(null)
-      const [e, m] = await Promise.all([dados.listarEncomendas(), dados.listarMoradores()])
+      const [e, m, emp] = await Promise.all([dados.listarEncomendas(), dados.listarMoradores(), dados.listarEmpresas()])
       setEncomendas(e)
       setMoradores(m)
+      setEmpresas(emp)
     } catch {
       setErro('Não foi possível carregar as encomendas. Verifique a conexão e tente de novo.')
     }
@@ -202,11 +215,14 @@ export default function App() {
 
   function novoRascunho(parcial: Partial<Rascunho>, texto = ''): Rascunho {
     const r = extrairDados(texto, moradores)
+    const empresa = empresaNoTexto(texto, empresas)
     return {
       foto: null,
       fotoUrl: null,
       codigo: null,
       morador: r.morador,
+      empresa_id: empresa?.id ?? null,
+      destinatario_id: null,
       loja: r.loja ?? '',
       transportadora: r.transportadora ?? '',
       vendedor: r.remetente ?? '',
@@ -250,15 +266,21 @@ export default function App() {
     ir('conferir')
   }
 
-  async function salvar(r: Rascunho & { morador: Morador }) {
+  async function salvar(r: Rascunho) {
+    const empresa = empresas.find((e) => e.id === r.empresa_id)
+    if (!empresa) return
     setSalvando(true)
     setErro(null)
     try {
       const vazio = (v: string) => v.trim() || null
+      const destinatarios = await dados.listarDestinatarios(empresa.id)
+      const destinatario = destinatarios.find((d) => d.id === r.destinatario_id)
       const salva = await dados.salvarEncomenda({
-        morador: r.morador,
-        destinatario_nome: r.morador.nome,
-        apartamento: r.morador.apartamento,
+        morador: null,
+        empresa_id: empresa.id,
+        destinatario_id: destinatario?.id ?? null,
+        destinatario_nome: destinatario?.nome ?? empresa.nome,
+        apartamento: empresa.sala ?? empresa.andar ?? '-',
         loja: vazio(r.loja),
         transportadora: vazio(r.transportadora),
         vendedor: vazio(r.vendedor),
@@ -433,7 +455,7 @@ export default function App() {
         return rascunho ? (
           <Conferencia
             rascunho={rascunho}
-            moradores={moradores}
+            empresas={empresas}
             salvando={salvando}
             erro={erro}
             aoSalvar={salvar}

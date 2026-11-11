@@ -1,9 +1,9 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { Camera, Check, ChevronDown, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { gsap, useGSAP } from '../lib/gsap'
-import { dados, type Condicao, type Encomenda, type TipoPacote } from '../lib/data'
+import { dados, type Condicao, type Destinatario, type Empresa, type Encomenda, type TipoPacote } from '../lib/data'
 import type { Morador } from '../lib/parser'
 import { Holofote, NumeroAnimado, TituloLetras } from './Cinema'
 import { ControleAnimacao } from './ControleAnimacao'
@@ -396,6 +396,8 @@ export interface Rascunho {
   fotoUrl: string | null
   codigo: string | null
   morador: Morador | null
+  empresa_id: string | null
+  destinatario_id: string | null
   loja: string
   transportadora: string
   vendedor: string
@@ -424,25 +426,48 @@ function Tile({ rotulo, children, className = '' }: { rotulo?: string; children:
 
 export function Conferencia({
   rascunho,
-  moradores,
+  empresas,
   salvando,
   erro,
   aoSalvar,
   aoCancelar,
 }: {
   rascunho: Rascunho
-  moradores: Morador[]
+  empresas: Empresa[]
   salvando: boolean
   erro: string | null
-  aoSalvar: (r: Rascunho & { morador: Morador }) => void
+  aoSalvar: (r: Rascunho) => void
   aoCancelar: () => void
 }) {
-  const [moradorId, setMoradorId] = useState(rascunho.morador?.id ?? '')
+  const [empresaId, setEmpresaId] = useState(rascunho.empresa_id ?? '')
+  const [destinatarioId, setDestinatarioId] = useState(rascunho.destinatario_id ?? '')
+  const [destinatarios, setDestinatarios] = useState<Destinatario[]>([])
+  useEffect(() => {
+    let cancelado = false
+    if (!empresaId) return
+    dados
+      .listarDestinatarios(empresaId)
+      .then((l) => !cancelado && setDestinatarios(l))
+      .catch(() => !cancelado && setDestinatarios([]))
+    return () => {
+      cancelado = true
+    }
+  }, [empresaId])
+  const opcoesEmpresas = useMemo(
+    () =>
+      empresas.map((e) => ({
+        id: e.id,
+        nome: e.nome,
+        apartamento: e.sala ?? e.andar ?? '—',
+        bloco: e.andar ? e.andar + 'º andar' : null,
+      })),
+    [empresas],
+  )
   const [f, setF] = useState(rascunho)
   const temDetalhe = !!(f.rastreio || f.pedido || f.vendedor || f.origem_cidade)
   const [detalhes, setDetalhes] = useState(temDetalhe)
-  const morador = moradores.find((m) => m.id === moradorId) ?? null
-  const identificado = !!rascunho.morador
+  const empresa = empresas.find((e) => e.id === empresaId) ?? null
+  const identificado = !!rascunho.empresa_id
   const mudar = <K extends keyof Rascunho>(k: K, v: Rascunho[K]) => setF((x) => ({ ...x, [k]: v }))
   const previaPacote = useMemo(() => (f.foto_pacote ? URL.createObjectURL(f.foto_pacote) : null), [f.foto_pacote])
 
@@ -478,21 +503,41 @@ export function Conferencia({
               role="status"
             >
               {identificado ? <Check className="size-4" strokeWidth={2} /> : <TriangleAlert className="size-4" strokeWidth={2} />}
-              {identificado ? 'Morador identificado. Confira e salve.' : 'Não foi possível identificar o morador. Selecione abaixo.'}
+              {identificado ? 'Empresa identificada. Confira e salve.' : 'Não foi possível identificar a empresa. Selecione abaixo.'}
             </p>
             <div>
               <p className="rotulo m-0 mb-2">Morador</p>
-              <SeletorMorador moradores={moradores} valor={moradorId} aoMudar={setMoradorId} />
+              <SeletorMorador
+                moradores={opcoesEmpresas}
+                valor={empresaId}
+                aoMudar={(id) => {
+                  setEmpresaId(id)
+                  setDestinatarioId('')
+                }}
+                rotulo="Empresa"
+              />
+              {destinatarios.length > 0 && (
+                <div className="mt-4">
+                  <p className="rotulo m-0 mb-2">Destinatário (opcional)</p>
+                  <ChipsUnico<string>
+                    valor={destinatarioId}
+                    aoMudar={(v) => setDestinatarioId(v)}
+                    opcoes={destinatarios.map((d) => ({ valor: d.id, rotulo: d.nome }))}
+                    rotulo="Destinatário"
+                    limpavel
+                  />
+                </div>
+              )}
             </div>
           </Tile>
         </Aparecer>
 
         <Aparecer i={2} className="lg:col-span-3">
-          <Tile rotulo="Apartamento" className="h-full justify-end">
+          <Tile rotulo="Andar e sala" className="h-full justify-end">
             <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="apto">
-              {morador?.apartamento ?? '—'}
+              {empresa ? (empresa.sala ?? empresa.andar ?? '—') : '—'}
             </p>
-            {morador?.bloco && <p className="m-0 -mt-2 text-muted">Bloco {morador.bloco}</p>}
+            {empresa?.andar && <p className="m-0 -mt-2 text-muted">{empresa.andar}º andar</p>}
           </Tile>
         </Aparecer>
 
@@ -601,7 +646,8 @@ export function Conferencia({
         <Aparecer i={8} className="lg:col-span-12">
           <div className="sticky bottom-4 z-10 space-y-3 lg:static">
             {erro && <Aviso>{erro}</Aviso>}
-            <Botao grande className="w-full" disabled={!morador || salvando} onClick={() => morador && aoSalvar({ ...f, morador })}>
+            <Botao grande className="w-full" disabled={!empresa || salvando}
+              onClick={() => empresa && aoSalvar({ ...f, empresa_id: empresa.id, destinatario_id: destinatarioId || null })}>
               {salvando ? 'Salvando…' : 'Salvar Encomenda'}
             </Botao>
           </div>

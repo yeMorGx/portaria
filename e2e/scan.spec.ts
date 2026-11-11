@@ -63,6 +63,6 @@ test('lê um QR Code de verdade pela câmera e trava no alvo', async ({ page }) 
     if (await page.getByRole('heading', { name: 'Conferir encomenda' }).isVisible()) break
   }
   await expect(page.getByRole('heading', { name: 'Conferir encomenda' })).toBeVisible({ timeout: 20000 })
-  await expect(page.getByRole('combobox', { name: 'Morador' })).toContainText('Maria Fernanda Oliveira')
+  await expect(page.getByText('Não foi possível identificar a empresa')).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Correios', exact: true })).toBeChecked()
 })

@@ -12,10 +12,12 @@ export function SeletorMorador({
   moradores,
   valor,
   aoMudar,
+  rotulo = 'Morador',
 }: {
   moradores: Morador[]
   valor: string
   aoMudar: (id: string) => void
+  rotulo?: string
 }) {
   const [aberto, setAberto] = useState(false)
   const atual = moradores.find((m) => m.id === valor)
@@ -27,7 +29,7 @@ export function SeletorMorador({
           type="button"
           role="combobox"
           aria-expanded={aberto}
-          aria-label="Morador"
+          aria-label={rotulo}
           className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 rounded-botao border border-line bg-s2 px-4 text-left text-lg transition duration-[120ms] hover:bg-s3"
         >
           <span className={`min-w-0 truncate ${atual ? 'font-semibold' : 'text-muted'}`}>

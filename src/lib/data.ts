@@ -43,6 +43,8 @@ export interface Encomenda {
 
 export interface NovaEncomenda {
   morador: Morador | null
+  empresa_id: string | null
+  destinatario_id: string | null
   destinatario_nome: string
   apartamento: string
   loja: string | null
@@ -158,6 +160,8 @@ function linhaNova(e: NovaEncomenda, id: string) {
   return {
     id,
     morador_id: e.morador?.id ?? null,
+    empresa_id: e.empresa_id,
+    destinatario_id: e.destinatario_id,
     destinatario_nome: e.destinatario_nome,
     apartamento: e.apartamento,
     bloco: e.morador?.bloco ?? null,
