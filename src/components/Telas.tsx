@@ -161,7 +161,7 @@ export function Inicio({
   turno: string
   aoNova: () => void
   aoEntregar: (e: Encomenda) => void
-  aoTrocarTurno: () => void
+  aoTrocarTurno?: () => void
   aoSair?: () => void
   aoRecarregar: () => void
 }) {
@@ -192,10 +192,12 @@ export function Inicio({
         <Marca />
         <div className="flex items-center gap-1">
           <ControleAnimacao />
-          <Botao variante="fantasma" onClick={aoTrocarTurno} className="!min-h-11 !gap-2 !px-3" aria-label="Trocar turno">
-            <UserRound className="size-5" strokeWidth={1.75} />
-            <span className="max-w-[9ch] truncate md:max-w-none">{turno}</span>
-          </Botao>
+          {aoTrocarTurno && (
+            <Botao variante="fantasma" onClick={aoTrocarTurno} className="!min-h-11 !gap-2 !px-3" aria-label="Trocar turno">
+              <UserRound className="size-5" strokeWidth={1.75} />
+              <span className="max-w-[9ch] truncate md:max-w-none">{turno}</span>
+            </Botao>
+          )}
           {aoSair && (
             <Botao variante="fantasma" onClick={aoSair} className="!min-h-11 !gap-2 !px-3">
               <LogOut className="size-5" strokeWidth={1.75} />

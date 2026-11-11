@@ -95,10 +95,19 @@ export class ErroEntrega extends Error {
   }
 }
 
+/** Conta do sistema: quem está logado, em qual prédio e com qual papel. */
+export interface Perfil {
+  nome: string
+  papel: 'porteiro' | 'sindico' | 'administradora'
+  predio_id: string
+}
+
 export interface DataSource {
   readonly modo: 'supabase' | 'demo'
   precisaLogin: boolean
   sessaoAtiva(): Promise<boolean>
+  /** Perfil da conta logada, ou null se a conta não tem acesso ao sistema. */
+  perfil(): Promise<Perfil | null>
   entrar(email: string, senha: string): Promise<void>
   sair(): Promise<void>
   listarMoradores(): Promise<Morador[]>
@@ -174,6 +183,19 @@ function criarSupabase(client: SupabaseClient): DataSource {
     async sessaoAtiva() {
       const { data } = await client.auth.getSession()
       return !!data.session
+    },
+    async perfil() {
+      const { data: u } = await client.auth.getUser()
+      if (!u.user) return null
+      const { data, error } = await client
+        .from('usuarios')
+        .select('nome,papel,predio_id')
+        .eq('auth_id', u.user.id)
+        .eq('ativo', true)
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return (data as Perfil | null) ?? null
     },
     async entrar(email, senha) {
       const { error } = await client.auth.signInWithPassword({ email, password: senha })
@@ -274,6 +296,7 @@ function criarDemo(): DataSource {
     modo: 'demo',
     precisaLogin: false,
     sessaoAtiva: async () => true,
+    perfil: async () => null,
     entrar: async () => {},
     sair: async () => {},
     listarMoradores: async () => moradores,

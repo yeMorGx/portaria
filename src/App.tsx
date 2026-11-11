@@ -5,14 +5,14 @@ import { CapturaFoto, LeitorCodigo } from './components/Camera'
 import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cinema'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
-import { Cabecalho, Pagina } from './components/ui'
+import { Botao, Cabecalho, Pagina } from './components/ui'
 import { useAnimacao } from './lib/animacao'
 import { gsap, useGSAP } from './lib/gsap'
-import { dados, ErroEntrega, type Encomenda } from './lib/data'
+import { dados, ErroEntrega, type Encomenda, type Perfil } from './lib/data'
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, type Morador } from './lib/parser'
 
-type Tela = 'carregando' | 'login' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
+type Tela = 'carregando' | 'login' | 'semacesso' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
 
 const CHAVE_TURNO = 'portaria.turno'
 function mensagemErroEntrega(e: unknown): string {
@@ -44,6 +44,7 @@ function lerTurno(): string {
 const ORDEM: Record<Tela, number> = {
   carregando: -1,
   login: 0,
+  semacesso: 0,
   turno: 0,
   inicio: 1,
   escolha: 2,
@@ -164,16 +165,38 @@ export default function App() {
     }
   }, [])
 
+  const [perfil, setPerfil] = useState<Perfil | null>(null)
+
+  /** Depois do login: a conta define o prédio, o nome do turno e o papel. Sem perfil, a conta não entra. */
+  const entrarNoApp = useCallback(async () => {
+    try {
+      const p = await dados.perfil()
+      if (dados.precisaLogin && !p) {
+        ir('semacesso', { cortina: true })
+        return
+      }
+      if (p) {
+        setPerfil(p)
+        setTurno(p.nome)
+        carregar()
+        ir('inicio', { cortina: true })
+        return
+      }
+      carregar()
+      ir(proxima(), { cortina: true })
+    } catch {
+      ir('login', { cortina: true })
+    }
+  }, [carregar, proxima, ir])
+
   useEffect(() => {
     // Abertura cinematográfica: no mínimo 1,3 s, a não ser que as animações estejam desligadas.
     const minimo = new Promise((ok) => setTimeout(ok, reduzirRef.current ? 0 : 1300))
     Promise.all([dados.sessaoAtiva(), minimo]).then(([ok]) => {
-      if (ok) {
-        carregar()
-        ir(proxima(), { cortina: true })
-      } else ir('login', { cortina: true })
+      if (ok) void entrarNoApp()
+      else ir('login', { cortina: true })
     })
-  }, [carregar, proxima, ir])
+  }, [entrarNoApp, ir])
 
   function novoRascunho(parcial: Partial<Rascunho>, texto = ''): Rascunho {
     const r = extrairDados(texto, moradores)
@@ -304,11 +327,27 @@ export default function App() {
       case 'login':
         return (
           <Login
-            aoEntrar={() => {
-              ir(proxima(), { cortina: true })
-              carregar()
-            }}
+            aoEntrar={() => void entrarNoApp()}
           />
+        )
+      case 'semacesso':
+        return (
+          <Pagina className="flex min-h-screen flex-col justify-center md:max-w-lg">
+            <div className="tile p-6 md:p-8">
+              <h1 className="text-2xl font-semibold tracking-[-0.02em]">Conta sem acesso</h1>
+              <p className="mt-3 text-muted">Esta conta não está liberada para o sistema. Peça ao administrador do prédio para cadastrá-la.</p>
+              <Botao
+                variante="secundario"
+                className="mt-6 w-full"
+                onClick={async () => {
+                  await dados.sair()
+                  ir('login', { cortina: true })
+                }}
+              >
+                Sair
+              </Botao>
+            </div>
+          </Pagina>
         )
       case 'turno':
         return (
@@ -337,7 +376,7 @@ export default function App() {
               setEntrega(e)
               ir('entrega')
             }}
-            aoTrocarTurno={() => ir('turno')}
+            aoTrocarTurno={perfil ? undefined : () => ir('turno')}
             aoRecarregar={carregar}
             aoSair={
               dados.precisaLogin
