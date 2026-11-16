@@ -1,6 +1,7 @@
 import { ChevronRight, Plus } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { dados, type Destinatario, type Empresa, type EmpresaEntrada } from '../lib/data'
+import { normalizarTelefone } from '../lib/whatsapp'
 import { Aparecer, Aviso, Botao, Cabecalho, Pagina } from './ui'
 
 const campo = 'min-h-12 w-full rounded-botao border border-line bg-s2 px-4 text-base'
@@ -102,6 +103,7 @@ function FormEmpresa({
 function Destinatarios({ empresa }: { empresa: Empresa }) {
   const [lista, setLista] = useState<Destinatario[] | null>(null)
   const [nome, setNome] = useState('')
+  const [telefone, setTelefone] = useState('')
   const [tipo, setTipo] = useState<'pessoa' | 'setor'>('pessoa')
   const [erro, setErro] = useState<string | null>(null)
 
@@ -119,10 +121,15 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
   async function adicionar(e: React.FormEvent) {
     e.preventDefault()
     if (nome.trim().length < 2) return
+    const tel = normalizarTelefone(telefone)
+    if (telefone.trim() && !tel) return setErro('Confira o WhatsApp: use DDD e o celular, por exemplo (13) 99999-0000.')
     try {
-      const novo = await dados.salvarDestinatario({ nome: nome.trim(), tipo, ativo: true }, empresa.id)
+      // O telefone só vai quando preenchido, para o cadastro funcionar mesmo antes da coluna existir no banco.
+      const novo = await dados.salvarDestinatario({ nome: nome.trim(), tipo, ativo: true, ...(tel ? { telefone: tel } : {}) }, empresa.id)
       setLista((l) => [...(l ?? []), novo].sort((a, b) => a.nome.localeCompare(b.nome)))
       setNome('')
+      setTelefone('')
+      setErro(null)
     } catch {
       setErro('Não foi possível adicionar. Verifique se a sua conta pode cadastrar.')
     }
@@ -150,7 +157,10 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
             <li key={d.id} className="flex items-center justify-between gap-3 py-3">
               <span className="min-w-0">
                 <span className={`block truncate font-medium ${d.ativo ? '' : 'text-muted line-through'}`}>{d.nome}</span>
-                <span className="rotulo">{d.tipo === 'setor' ? 'Setor' : 'Pessoa'}</span>
+                <span className="rotulo">
+                  {d.tipo === 'setor' ? 'Setor' : 'Pessoa'}
+                  {d.telefone ? <span className="num normal-case"> · WhatsApp {d.telefone}</span> : null}
+                </span>
               </span>
               <Botao variante="secundario" className="!min-h-11" onClick={() => alternar(d)}>
                 {d.ativo ? 'Desativar' : 'Reativar'}
@@ -162,6 +172,16 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
       <form onSubmit={adicionar} className="flex flex-col gap-3 border-t border-line pt-4 md:flex-row md:items-end">
         <Rotulo texto="Novo destinatário">
           <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome ou setor" aria-label="Novo destinatário" />
+        </Rotulo>
+        <Rotulo texto="WhatsApp (opcional)">
+          <input
+            className={`${campo} num`}
+            value={telefone}
+            onChange={(e) => setTelefone(e.target.value)}
+            inputMode="tel"
+            placeholder="(13) 99999-0000"
+            aria-label="WhatsApp do novo destinatário"
+          />
         </Rotulo>
         <div className="flex gap-2">
           {(['pessoa', 'setor'] as const).map((t) => (

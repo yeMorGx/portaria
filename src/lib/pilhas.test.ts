@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Encomenda } from './data'
 import { aguardandoNoDestino, empilhar } from './pilhas'
-import { mensagemChegada } from './whatsapp'
+import { linkWhatsapp, mensagemChegada, normalizarTelefone } from './whatsapp'
 
 function enc(parcial: Partial<Encomenda>): Encomenda {
   return {
@@ -72,5 +72,28 @@ describe('mensagemChegada', () => {
   it('várias encomendas: diz quantas estão aguardando', () => {
     const m = mensagemChegada(enc({}), 3, 'Empresa X')
     expect(m).toBe('Olá, Maria! Chegaram 3 encomendas para Empresa X na portaria e estão aguardando retirada. Pode retirar quando quiser.')
+  })
+
+  it('com código: a mensagem leva o código de retirada', () => {
+    const m = mensagemChegada(enc({ loja: 'Shopee' }), 1, 'Empresa X', '042731')
+    expect(m).toBe('Olá, Maria! Chegou uma encomenda para Empresa X na portaria (Shopee). Código de retirada: 042731. Informe o código na portaria para retirar.')
+  })
+})
+
+describe('telefone do WhatsApp', () => {
+  it('aceita os formatos comuns e põe o 55', () => {
+    expect(normalizarTelefone('(13) 99999-0000')).toBe('5513999990000')
+    expect(normalizarTelefone('+55 13 99999-0000')).toBe('5513999990000')
+    expect(normalizarTelefone('1333334444')).toBe('551333334444')
+  })
+
+  it('recusa o que não parece telefone', () => {
+    expect(normalizarTelefone('123')).toBeNull()
+    expect(normalizarTelefone('')).toBeNull()
+    expect(normalizarTelefone(null)).toBeNull()
+  })
+
+  it('o link já abre a conversa do número com a mensagem', () => {
+    expect(linkWhatsapp('5513999990000', 'Olá! Código: 1')).toBe('https://wa.me/5513999990000?text=Ol%C3%A1!%20C%C3%B3digo%3A%201')
   })
 })

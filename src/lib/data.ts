@@ -125,6 +125,8 @@ export interface Destinatario {
   nome: string
   tipo: 'pessoa' | 'setor'
   ativo: boolean
+  /** WhatsApp do destinatário, só dígitos com 55 e DDD (coluna da migração 006). */
+  telefone?: string | null
 }
 
 export type EmpresaEntrada = Omit<Empresa, 'id' | 'predio_id'> & { id?: string }
@@ -148,6 +150,8 @@ export interface DataSource {
   salvarEncomenda(e: NovaEncomenda): Promise<Encomenda>
   /** Gera um código novo e avisa o morador (modo simulado). Devolve se houve aviso. */
   reenviarCodigo(e: Encomenda): Promise<{ avisado: boolean }>
+  /** Gera um código de retirada novo e devolve o número uma vez, para ir na mensagem do WhatsApp. */
+  gerarCodigoRetirada(e: Encomenda): Promise<string>
   confirmarEntrega(c: ConfirmarEntrega): Promise<Encomenda>
 }
 
@@ -317,6 +321,14 @@ function criarSupabase(client: SupabaseClient): DataSource {
     reenviarCodigo(e) {
       return avisar(e.id)
     },
+    async gerarCodigoRetirada(e) {
+      const { data, error } = await client.rpc('gerar_codigo_retirada', { p_encomenda: e.id })
+      if (error) throw error
+      const r = data as { ok: boolean; codigo?: string; motivo?: string }
+      if (!r.ok || !r.codigo) throw new Error(r.motivo ?? 'erro')
+      guardarCodigoSimulado(e.id, r.codigo)
+      return r.codigo
+    },
     async confirmarEntrega(c) {
       let caminho = assinaturasEnviadas.get(c.assinatura)
       if (!caminho) {
@@ -345,7 +357,7 @@ function criarDemo(): DataSource {
     { id: '22222222-2222-2222-2222-222222222222', predio_id: '11111111-1111-1111-1111-111111111111', nome: 'Empresa de teste', cnpj: null, andar: '1', sala: '101', responsavel_nome: null, responsavel_contato: null, ativo: true },
   ]
   const destinatariosDemo: Destinatario[] = [
-    { id: 'd1', empresa_id: '22222222-2222-2222-2222-222222222222', nome: 'Maria Fernanda Oliveira', tipo: 'pessoa', ativo: true },
+    { id: 'd1', empresa_id: '22222222-2222-2222-2222-222222222222', nome: 'Maria Fernanda Oliveira', tipo: 'pessoa', ativo: true, telefone: '5511999990202' },
     { id: 'd2', empresa_id: '22222222-2222-2222-2222-222222222222', nome: 'Financeiro', tipo: 'setor', ativo: true },
   ]
   const agora = new Date().toISOString()
@@ -428,6 +440,16 @@ function criarDemo(): DataSource {
     async reenviarCodigo(e) {
       const alvo = encomendas.find((x) => x.id === e.id)
       return alvo ? avisar(alvo) : { avisado: false }
+    },
+    async gerarCodigoRetirada(e) {
+      const alvo = encomendas.find((x) => x.id === e.id)
+      if (!alvo || alvo.status === 'retirada') throw new Error('nao_encontrada')
+      const codigo = gerarCodigo()
+      codigos.set(alvo.id, { hash: await hashCodigo(alvo.id, codigo), tentativas: 0 })
+      guardarCodigoSimulado(alvo.id, codigo)
+      alvo.status = 'avisada'
+      alvo.avisado_em = new Date().toISOString()
+      return codigo
     },
     async confirmarEntrega(c) {
       const alvo = encomendas.find((x) => x.id === c.encomenda.id)

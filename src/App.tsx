@@ -164,7 +164,7 @@ export default function App() {
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
   const [detalhe, setDetalhe] = useState<Encomenda | null>(null)
-  const [registrada, setRegistrada] = useState<Encomenda | null>(null)
+  const [registrada, setRegistrada] = useState<{ encomenda: Encomenda; telefone: string | null } | null>(null)
   const [enviando, setEnviando] = useState(false)
   const { reduzir } = useAnimacao()
   const reduzirRef = useRef(reduzir)
@@ -321,13 +321,9 @@ export default function App() {
       await carregar()
       setNovoId(salva.id)
       setRascunho(null)
-      setRegistrada(salva)
+      setRegistrada({ encomenda: salva, telefone: destinatario?.telefone ?? empresa.responsavel_contato ?? null })
       ir('registrada')
-      toast.success(
-        salva.status === 'avisada'
-          ? 'Encomenda salva. Aviso ao morador enviado (simulado).'
-          : 'Encomenda salva. Morador sem telefone ou consentimento: sem aviso.',
-      )
+      toast.success('Encomenda salva.')
     } catch {
       setErro('Não foi possível salvar. Tente novamente.')
     } finally {
@@ -460,9 +456,10 @@ export default function App() {
       case 'registrada':
         return registrada ? (
           <EncomendaRegistrada
-            encomenda={registrada}
+            encomenda={registrada.encomenda}
             encomendas={encomendas ?? []}
-            empresa={empresas.find((x) => x.id === registrada.empresa_id)?.nome}
+            empresa={empresas.find((x) => x.id === registrada.encomenda.empresa_id)?.nome}
+            telefone={registrada.telefone}
             aoConcluir={() => {
               setRegistrada(null)
               ir('inicio')

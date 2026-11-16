@@ -1,5 +1,5 @@
 -- 006: telefone e consentimento para aviso por WhatsApp no destinatário (pessoa).
--- RASCUNHO: ainda não aplicado. Aplicar só depois de revisão e ensaio.
+-- Aplicada no Supabase de teste em 2026-11-16, depois de ensaio revertido.
 --
 -- Regras:
 -- - telefone: só dígitos, com 55 e DDD (ex.: 5513991925568). Opcional.

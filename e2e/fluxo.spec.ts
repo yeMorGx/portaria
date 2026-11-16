@@ -60,12 +60,17 @@ async function proximo(page: Page) {
   await page.getByRole('button', { name: 'Próximo' }).click()
 }
 
-// Tela final do recebimento: oferece o aviso pelo WhatsApp e volta ao início em "Concluir".
-async function concluir(page: Page, mensagem?: string | RegExp) {
+// Tela final do recebimento: gera o código, põe na mensagem do WhatsApp e volta ao início em "Concluir".
+async function concluir(page: Page, mensagem?: string | RegExp): Promise<string> {
   await expect(page.getByRole('heading', { name: 'Encomenda registrada' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Avisar o morador' })).toBeVisible()
+  const campoCodigo = page.getByTestId('codigo-retirada')
+  await expect(campoCodigo).toHaveText(/^\d{6}$/)
+  const codigo = (await campoCodigo.textContent())!.trim()
+  await expect(page.getByRole('button', { name: 'Avisar o morador' })).toBeEnabled()
+  await expect(page.getByLabel('Mensagem do aviso')).toHaveValue(new RegExp(`Código de retirada.*${codigo}`))
   if (mensagem) await expect(page.getByLabel('Mensagem do aviso')).toHaveValue(mensagem)
   await page.getByRole('button', { name: 'Concluir' }).click()
+  return codigo
 }
 
 async function receberPorCodigo(page: Page, codigo: string, destinatario: string) {
@@ -130,6 +135,8 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   // Passo 4: guarda e revisão
   await page.getByRole('radio', { name: 'Prateleira A' }).click()
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+  // O WhatsApp cadastrado do destinatário já vem preenchido: o envio abre direto na conversa dele.
+  await expect(page.getByLabel('WhatsApp do destinatário')).toHaveValue('5511999990202')
   await concluir(page)
 
   const lista = page.getByTestId('lista')
@@ -140,7 +147,7 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   await expect(lista).toContainText('Comprado em Shopee')
   await expect(page.getByTestId('contador-aguardando')).toHaveText('1')
 
-  // Sem telefone de contato na empresa, não há código: a entrega sai só com justificativa.
+  // Sem o código em mãos, a entrega também pode sair com justificativa.
   await page.getByRole('button', { name: /Entregar para Maria Fernanda/ }).click()
   await expect(page.getByRole('heading', { name: 'Entregar ao morador' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Confirmar entrega' })).toBeDisabled()
@@ -185,27 +192,21 @@ test('seleção manual da empresa quando a etiqueta não identifica', async ({ p
   await expect(page.getByTestId('lista')).toContainText('Financeiro')
 })
 
-test('código de retirada: errado é recusado com tentativas restantes', async ({ page }) => {
+test('código de retirada: o da mensagem libera a entrega, um errado é recusado', async ({ page }) => {
   await comecarTurno(page)
-  await page.getByRole('button', { name: 'Nova Encomenda' }).click()
-  await page.getByRole('button', { name: /Escanear código/ }).click()
-  await page.getByLabel('Código digitado').fill('AB123456789BR')
-  await page.getByRole('button', { name: 'Usar código' }).click()
-  await escolherEmpresa(page, 'Maria Fernanda Oliveira')
-  await proximo(page)
-  await proximo(page)
-  await fotoDoPacote(page)
-  await proximo(page)
-  await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
-  await concluir(page)
+  await receberPorCodigo(page, 'AB123456789BR', 'Maria Fernanda Oliveira')
+  const codigo = await concluir(page)
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 
-  // A empresa de teste não tem contato cadastrado, então não há código gerado: o servidor recusa a conferência.
   await page.getByRole('button', { name: /Entregar para Maria Fernanda/ }).click()
-  await page.getByLabel('Código de retirada').fill('123456')
+  await page.getByLabel('Código de retirada').fill(codigo === '123456' ? '654321' : '123456')
   await assinar(page)
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
-  await expect(page.getByRole('alert')).toContainText('não tem código válido')
+  await expect(page.getByRole('alert')).toContainText('Restam 4 tentativa(s)')
+
+  await page.getByLabel('Código de retirada').fill(codigo)
+  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
+  await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
 })
 
 test('controle de animações: liga, desliga e lembra a escolha', async ({ page }) => {
