@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Encomenda } from './data'
 import { aguardandoNoDestino, empilhar } from './pilhas'
-import { linkWhatsapp, mensagemChegada, normalizarTelefone } from './whatsapp'
+import { linkWhatsapp, mensagemAviso, normalizarTelefone } from './whatsapp'
 
 function enc(parcial: Partial<Encomenda>): Encomenda {
   return {
@@ -63,20 +63,26 @@ describe('empilhar', () => {
   })
 })
 
-describe('mensagemChegada', () => {
-  it('uma encomenda: cita a origem e o local', () => {
-    const m = mensagemChegada(enc({ loja: 'Shopee', local_guarda: 'Recepção' }), 1, 'Empresa X')
-    expect(m).toBe('Olá, Maria! Chegou uma encomenda para Empresa X na portaria (Shopee). Ela está em: Recepção. Pode retirar quando quiser.')
+describe('mensagemAviso', () => {
+  it('uma encomenda para uma pessoa: cumprimenta pelo nome, cita a origem e o local', () => {
+    const m = mensagemAviso({ itens: [enc({ loja: 'Shopee', local_guarda: 'Recepção' })], empresa: 'Empresa X' })
+    expect(m).toBe('Olá, Maria! Chegou uma encomenda para você na portaria (Shopee). Ela está em: Recepção. Pode retirar quando quiser.')
   })
 
-  it('várias encomendas: diz quantas estão aguardando', () => {
-    const m = mensagemChegada(enc({}), 3, 'Empresa X')
-    expect(m).toBe('Olá, Maria! Chegaram 3 encomendas para Empresa X na portaria e estão aguardando retirada. Pode retirar quando quiser.')
+  it('destinatário é a própria empresa: não repete o nome', () => {
+    const itens = [enc({ destinatario_nome: 'ZPT Digital' }), enc({ destinatario_nome: 'ZPT Digital' })]
+    const m = mensagemAviso({ itens, empresa: 'ZPT Digital', codigo: '042731' })
+    expect(m).toBe('Olá! Chegaram 2 encomendas para ZPT Digital na portaria. Código de retirada (vale para as 2): 042731. Informe o código na portaria para retirar.')
   })
 
-  it('com código: a mensagem leva o código de retirada', () => {
-    const m = mensagemChegada(enc({ loja: 'Shopee' }), 1, 'Empresa X', '042731')
-    expect(m).toBe('Olá, Maria! Chegou uma encomenda para Empresa X na portaria (Shopee). Código de retirada: 042731. Informe o código na portaria para retirar.')
+  it('pessoas diferentes da mesma empresa: fala com a empresa', () => {
+    const m = mensagemAviso({ itens: [enc({ destinatario_nome: 'Maria' }), enc({ destinatario_nome: 'Financeiro' })], empresa: 'Empresa X' })
+    expect(m.startsWith('Olá! Chegaram 2 encomendas para Empresa X na portaria.')).toBe(true)
+  })
+
+  it('com código e uma encomenda: leva o código', () => {
+    const m = mensagemAviso({ itens: [enc({ loja: 'Shopee' })], empresa: 'Empresa X', codigo: '042731' })
+    expect(m).toBe('Olá, Maria! Chegou uma encomenda para você na portaria (Shopee). Código de retirada: 042731. Informe o código na portaria para retirar.')
   })
 })
 

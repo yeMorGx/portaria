@@ -93,9 +93,10 @@ export function DetalheEncomenda({ e, aoVoltar }: { e: Encomenda; aoVoltar: () =
 
         <Aparecer i={2} className="lg:col-span-7">
           <section className="tile grid h-full gap-4 p-6 sm:grid-cols-2" aria-label="Imagens">
-            <Imagem rotulo="Assinatura" url={e.assinatura_url} claro />
+            {/* Assinatura só aparece nas entregas antigas que tiveram uma. */}
+            {e.assinatura_url && <Imagem rotulo="Assinatura" url={e.assinatura_url} claro />}
             <Imagem rotulo="Foto do pacote" url={e.foto_pacote_url} />
-            <div className="sm:col-span-2">
+            <div className={e.assinatura_url ? 'sm:col-span-2' : ''}>
               <Imagem rotulo="Etiqueta" url={e.foto_url} />
             </div>
           </section>

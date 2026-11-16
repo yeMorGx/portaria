@@ -1,21 +1,35 @@
 import type { Encomenda } from './data'
 
+const comparavel = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+
 /**
- * Mensagem de aviso de chegada, pronta para o porteiro revisar antes de enviar.
- * `total` é quantas encomendas do mesmo destino aguardam retirada, incluindo esta.
- * `codigo` é o código de retirada desta encomenda; sem ele, a mensagem só avisa a chegada.
+ * Mensagem de aviso, pronta para o porteiro revisar antes de enviar.
+ * `itens` são as encomendas do mesmo destino que aguardam retirada; `codigo` vale para todas elas.
+ * Só cumprimenta pelo nome quando há uma pessoa (ou setor) e ela não é a própria empresa,
+ * para não sair "Olá, ZPT Digital! Chegaram 2 encomendas para ZPT Digital".
  */
-export function mensagemChegada(e: Encomenda, total: number, empresa?: string | null, codigo?: string | null): string {
-  const partes = [`Olá, ${e.destinatario_nome}!`]
-  if (total > 1) {
-    partes.push(`Chegaram ${total} encomendas${empresa ? ` para ${empresa}` : ' para você'} na portaria e estão aguardando retirada.`)
+export function mensagemAviso({ itens, empresa, codigo }: { itens: Encomenda[]; empresa?: string | null; codigo?: string | null }): string {
+  const n = itens.length
+  const nomes = [...new Set(itens.map((e) => e.destinatario_nome.trim()))]
+  const nome = nomes.length === 1 && (!empresa || comparavel(nomes[0]) !== comparavel(empresa)) ? nomes[0] : null
+  const para = nome ? 'para você' : empresa ? `para ${empresa}` : 'para você'
+
+  const partes = [nome ? `Olá, ${nome}!` : 'Olá!']
+  if (n <= 1) {
+    const origem = itens[0]?.loja ?? itens[0]?.transportadora
+    partes.push(`Chegou uma encomenda ${para} na portaria${origem ? ` (${origem})` : ''}.`)
   } else {
-    const origem = e.loja ?? e.transportadora
-    partes.push(`Chegou uma encomenda${empresa ? ` para ${empresa}` : ' para você'} na portaria${origem ? ` (${origem})` : ''}.`)
+    partes.push(`Chegaram ${n} encomendas ${para} na portaria.`)
   }
-  if (e.local_guarda) partes.push(`${total > 1 ? 'A mais recente está' : 'Ela está'} em: ${e.local_guarda}.`)
+  const locais = [...new Set(itens.map((e) => e.local_guarda).filter(Boolean))]
+  if (locais.length === 1) partes.push(`${n <= 1 ? 'Ela está' : 'Estão'} em: ${locais[0]}.`)
   if (codigo) {
-    partes.push(`${total > 1 ? 'Código de retirada da mais recente' : 'Código de retirada'}: ${codigo}. Informe o código na portaria para retirar.`)
+    partes.push(`${n <= 1 ? 'Código de retirada' : `Código de retirada (vale para as ${n})`}: ${codigo}. Informe o código na portaria para retirar.`)
   } else {
     partes.push('Pode retirar quando quiser.')
   }

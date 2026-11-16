@@ -4,7 +4,7 @@ import { Toaster, toast } from 'sonner'
 import { CapturaFoto, LeitorCodigo } from './components/Camera'
 import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cinema'
 import { DetalheEncomenda } from './components/Detalhe'
-import { EncomendaRegistrada } from './components/Registrada'
+import { AvisoWhatsapp } from './components/Registrada'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Botao, Cabecalho, Pagina } from './components/ui'
@@ -164,7 +164,9 @@ export default function App() {
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
   const [detalhe, setDetalhe] = useState<Encomenda | null>(null)
-  const [registrada, setRegistrada] = useState<{ encomenda: Encomenda; telefone: string | null } | null>(null)
+  const [aviso, setAviso] = useState<{ referencia: Encomenda; nova: boolean } | null>(null)
+  // "Outra encomenda para…": a próxima conferência já vem com a mesma empresa e destinatário.
+  const [preset, setPreset] = useState<{ empresa_id: string; destinatario_id: string | null } | null>(null)
   const [enviando, setEnviando] = useState(false)
   const { reduzir } = useAnimacao()
   const reduzirRef = useRef(reduzir)
@@ -241,8 +243,8 @@ export default function App() {
       fotoUrl: null,
       codigo: null,
       morador: r.morador,
-      empresa_id: empresa?.id ?? null,
-      destinatario_id: null,
+      empresa_id: empresa?.id ?? preset?.empresa_id ?? null,
+      destinatario_id: empresa ? null : (preset?.destinatario_id ?? null),
       loja: r.loja ?? '',
       transportadora: r.transportadora ?? '',
       vendedor: r.remetente ?? '',
@@ -321,7 +323,8 @@ export default function App() {
       await carregar()
       setNovoId(salva.id)
       setRascunho(null)
-      setRegistrada({ encomenda: salva, telefone: destinatario?.telefone ?? empresa.responsavel_contato ?? null })
+      setPreset(null)
+      setAviso({ referencia: salva, nova: true })
       ir('registrada')
       toast.success('Encomenda salva.')
     } catch {
@@ -331,7 +334,7 @@ export default function App() {
     }
   }
 
-  async function confirmarEntrega(d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob }) {
+  async function confirmarEntrega(d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob | null }) {
     if (!entrega) return
     setEnviando(true)
     setErro(null)
@@ -420,6 +423,11 @@ export default function App() {
               ir('entrega')
             }}
             empresas={empresas}
+            aoAvisar={(e) => {
+              setPreset(null)
+              setAviso({ referencia: e, nova: false })
+              ir('registrada')
+            }}
             aoAbrir={(e) => {
               setDetalhe(e)
               ir('detalhe')
@@ -454,14 +462,26 @@ export default function App() {
           />
         ) : null
       case 'registrada':
-        return registrada ? (
-          <EncomendaRegistrada
-            encomenda={registrada.encomenda}
+        return aviso ? (
+          <AvisoWhatsapp
+            key={`${aviso.referencia.id}-${aviso.nova}`}
+            referencia={aviso.referencia}
+            nova={aviso.nova}
             encomendas={encomendas ?? []}
-            empresa={empresas.find((x) => x.id === registrada.encomenda.empresa_id)?.nome}
-            telefone={registrada.telefone}
+            empresas={empresas}
+            aoOutra={
+              aviso.referencia.empresa_id
+                ? () => {
+                    setPreset({ empresa_id: aviso.referencia.empresa_id!, destinatario_id: aviso.referencia.destinatario_id ?? null })
+                    setAviso(null)
+                    ir('escolha')
+                  }
+                : undefined
+            }
             aoConcluir={() => {
-              setRegistrada(null)
+              setPreset(null)
+              setAviso(null)
+              void carregar()
               ir('inicio')
             }}
           />

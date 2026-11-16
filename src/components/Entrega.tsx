@@ -5,8 +5,11 @@ import type { Encomenda } from '../lib/data'
 import { CartaoPedido } from './Pedido'
 import { Aparecer, Aviso, Botao, Cabecalho, Pagina } from './ui'
 
-/** Campo de assinatura: desenho com o dedo, o mouse ou a caneta. */
-function Assinatura({ aoMudar }: { aoMudar: (blob: Blob | null) => void }) {
+/**
+ * Campo de assinatura: desenho com o dedo, o mouse ou a caneta.
+ * Fora da tela de entrega por enquanto (a entrega vale pelo código); fica pronto para voltar se precisar.
+ */
+export function Assinatura({ aoMudar }: { aoMudar: (blob: Blob | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const desenhando = useRef(false)
   const [vazia, setVazia] = useState(true)
@@ -104,18 +107,17 @@ export function Entrega({
   entreguePor: string
   enviando: boolean
   erro: string | null
-  aoConfirmar: (d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob }) => void
+  aoConfirmar: (d: { codigo: string; semCodigo: boolean; justificativa: string; assinatura: Blob | null }) => void
   aoReenviar: () => void
   aoVoltar: () => void
 }) {
   const [codigo, setCodigo] = useState('')
   const [semCodigo, setSemCodigo] = useState(false)
   const [justificativa, setJustificativa] = useState('')
-  const [assinatura, setAssinatura] = useState<Blob | null>(null)
   const dica = lerCodigoSimulado(encomenda.id)
 
-  const codigoOk = semCodigo ? justificativa.trim().length >= 5 : codigo.length === 6
-  const pronto = codigoOk && !!assinatura
+  // A entrega vale pelo código (ou pela justificativa); a assinatura saiu por enquanto.
+  const pronto = semCodigo ? justificativa.trim().length >= 5 : codigo.length === 6
 
   return (
     <Pagina className="md:max-w-3xl">
@@ -197,22 +199,13 @@ export function Entrega({
         </Aparecer>
 
         <Aparecer i={3}>
-          <div className="tile flex flex-col gap-3 p-6">
-            <p className="rotulo m-0">Assinatura do morador</p>
-            <Assinatura aoMudar={setAssinatura} />
-          </div>
-        </Aparecer>
-
-        <Aparecer i={4}>
           <div className="sticky bottom-4 z-10 space-y-3 md:static">
             {erro && <Aviso>{erro}</Aviso>}
             <Botao
               grande
               className="w-full"
               disabled={!pronto || enviando}
-              onClick={() =>
-                assinatura && aoConfirmar({ codigo, semCodigo, justificativa: justificativa.trim(), assinatura })
-              }
+              onClick={() => aoConfirmar({ codigo, semCodigo, justificativa: justificativa.trim(), assinatura: null })}
             >
               <Check className="size-6" strokeWidth={2} />
               {enviando ? 'Confirmando…' : 'Confirmar entrega'}

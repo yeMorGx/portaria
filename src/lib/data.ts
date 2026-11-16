@@ -73,7 +73,8 @@ export interface ConfirmarEntrega {
   codigo: string
   semCodigo: boolean
   justificativa: string
-  assinatura: Blob
+  /** Opcional: por enquanto a entrega é confirmada só pelo código (ou pela justificativa). */
+  assinatura: Blob | null
   entreguePor: string
 }
 
@@ -150,8 +151,13 @@ export interface DataSource {
   salvarEncomenda(e: NovaEncomenda): Promise<Encomenda>
   /** Gera um código novo e avisa o morador (modo simulado). Devolve se houve aviso. */
   reenviarCodigo(e: Encomenda): Promise<{ avisado: boolean }>
-  /** Gera um código de retirada novo e devolve o número uma vez, para ir na mensagem do WhatsApp. */
-  gerarCodigoRetirada(e: Encomenda): Promise<string>
+  /**
+   * Gera um código de retirada único para as encomendas do lote e devolve o número uma vez,
+   * para ir na mensagem do WhatsApp. Substitui códigos anteriores dessas encomendas.
+   */
+  gerarCodigoLote(ids: string[]): Promise<string>
+  /** Grava o WhatsApp no cadastro: do destinatário ou, sem ele, o contato da empresa. */
+  lembrarTelefone(alvo: { destinatarioId?: string | null; empresaId?: string | null }, telefone: string): Promise<boolean>
   confirmarEntrega(c: ConfirmarEntrega): Promise<Encomenda>
 }
 
@@ -321,19 +327,31 @@ function criarSupabase(client: SupabaseClient): DataSource {
     reenviarCodigo(e) {
       return avisar(e.id)
     },
-    async gerarCodigoRetirada(e) {
-      const { data, error } = await client.rpc('gerar_codigo_retirada', { p_encomenda: e.id })
+    async gerarCodigoLote(ids) {
+      const { data, error } = await client.rpc('gerar_codigo_lote', { p_encomendas: ids })
       if (error) throw error
       const r = data as { ok: boolean; codigo?: string; motivo?: string }
       if (!r.ok || !r.codigo) throw new Error(r.motivo ?? 'erro')
-      guardarCodigoSimulado(e.id, r.codigo)
+      for (const id of ids) guardarCodigoSimulado(id, r.codigo)
       return r.codigo
     },
+    async lembrarTelefone(alvo, telefone) {
+      const { data, error } = await client.rpc('lembrar_telefone', {
+        p_destinatario: alvo.destinatarioId ?? null,
+        p_empresa: alvo.destinatarioId ? null : (alvo.empresaId ?? null),
+        p_telefone: telefone,
+      })
+      if (error) throw error
+      return !!(data as { ok: boolean }).ok
+    },
     async confirmarEntrega(c) {
-      let caminho = assinaturasEnviadas.get(c.assinatura)
-      if (!caminho) {
-        caminho = await enviar('assinaturas', c.assinatura)
-        assinaturasEnviadas.set(c.assinatura, caminho)
+      let caminho: string | null = null
+      if (c.assinatura) {
+        caminho = assinaturasEnviadas.get(c.assinatura) ?? null
+        if (!caminho) {
+          caminho = await enviar('assinaturas', c.assinatura)
+          assinaturasEnviadas.set(c.assinatura, caminho)
+        }
       }
       const { data, error } = await client.rpc('confirmar_entrega', {
         p_encomenda: c.encomenda.id,
@@ -441,15 +459,27 @@ function criarDemo(): DataSource {
       const alvo = encomendas.find((x) => x.id === e.id)
       return alvo ? avisar(alvo) : { avisado: false }
     },
-    async gerarCodigoRetirada(e) {
-      const alvo = encomendas.find((x) => x.id === e.id)
-      if (!alvo || alvo.status === 'retirada') throw new Error('nao_encontrada')
+    async gerarCodigoLote(ids) {
+      const alvos = ids.map((id) => encomendas.find((x) => x.id === id))
+      if (!alvos.length || alvos.some((a) => !a || a.status === 'retirada')) throw new Error('nao_encontrada')
       const codigo = gerarCodigo()
-      codigos.set(alvo.id, { hash: await hashCodigo(alvo.id, codigo), tentativas: 0 })
-      guardarCodigoSimulado(alvo.id, codigo)
-      alvo.status = 'avisada'
-      alvo.avisado_em = new Date().toISOString()
+      for (const alvo of alvos as Encomenda[]) {
+        codigos.set(alvo.id, { hash: await hashCodigo(alvo.id, codigo), tentativas: 0 })
+        guardarCodigoSimulado(alvo.id, codigo)
+        alvo.status = 'avisada'
+        alvo.avisado_em = new Date().toISOString()
+      }
       return codigo
+    },
+    async lembrarTelefone(alvo, telefone) {
+      if (alvo.destinatarioId) {
+        const d = destinatariosDemo.find((x) => x.id === alvo.destinatarioId)
+        if (d) d.telefone = telefone
+        return !!d
+      }
+      const e = empresasDemo.find((x) => x.id === alvo.empresaId)
+      if (e) e.responsavel_contato = telefone
+      return !!e
     },
     async confirmarEntrega(c) {
       const alvo = encomendas.find((x) => x.id === c.encomenda.id)
@@ -474,7 +504,7 @@ function criarDemo(): DataSource {
         entregue_por: c.entreguePor,
         entrega_sem_codigo: c.semCodigo,
         justificativa_sem_codigo: c.semCodigo ? c.justificativa : null,
-        assinatura_url: URL.createObjectURL(c.assinatura),
+        assinatura_url: c.assinatura ? URL.createObjectURL(c.assinatura) : null,
       })
       return alvo
     },

@@ -32,17 +32,6 @@ async function comecarTurno(page: Page, nome = 'Carlos') {
   await expect(page.getByRole('heading', { name: 'Encomendas' })).toBeVisible()
 }
 
-async function assinar(page: Page) {
-  await page.getByTestId('assinatura').scrollIntoViewIfNeeded()
-  await page.waitForTimeout(500)
-  const caixa = (await page.getByTestId('assinatura').boundingBox())!
-  await page.mouse.move(caixa.x + 40, caixa.y + 60)
-  await page.mouse.down()
-  await page.mouse.move(caixa.x + 120, caixa.y + 100, { steps: 6 })
-  await page.mouse.move(caixa.x + 200, caixa.y + 50, { steps: 6 })
-  await page.mouse.up()
-}
-
 // Passo 1 da conferência: escolhe a empresa e, se houver, o destinatário.
 async function escolherEmpresa(page: Page, destinatario?: string) {
   await page.getByRole('combobox', { name: 'Empresa' }).click()
@@ -86,12 +75,13 @@ async function receberPorCodigo(page: Page, codigo: string, destinatario: string
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
 }
 
-test('encomendas da mesma empresa ficam empilhadas e a mensagem conta quantas aguardam', async ({ page }) => {
+test('encomendas da mesma empresa ficam empilhadas e um código só libera todas', async ({ page }) => {
   await comecarTurno(page)
   await receberPorCodigo(page, 'AA111111111BR', 'Maria Fernanda Oliveira')
-  await concluir(page, /^Olá, Maria Fernanda Oliveira! Chegou uma encomenda para Empresa de teste na portaria/)
+  await concluir(page, /^Olá, Maria Fernanda Oliveira! Chegou uma encomenda para você na portaria/)
   await receberPorCodigo(page, 'BB222222222BR', 'Financeiro')
-  await concluir(page, /^Olá, Financeiro! Chegaram 2 encomendas para Empresa de teste na portaria/)
+  // Pessoas diferentes da mesma empresa: a mensagem fala com a empresa, sem repetir nome.
+  const codigo = await concluir(page, /^Olá! Chegaram 2 encomendas para Empresa de teste na portaria\. .*\(vale para as 2\)/)
 
   const pilha = page.getByRole('button', { name: '2 encomendas para Empresa de teste' })
   await expect(pilha).toHaveAttribute('aria-expanded', 'false')
@@ -101,9 +91,58 @@ test('encomendas da mesma empresa ficam empilhadas e a mensagem conta quantas ag
   await expect(page.getByRole('button', { name: 'Entregar para Maria Fernanda Oliveira' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Entregar para Financeiro' })).toBeVisible()
   await expect(page.getByTestId('contador-aguardando')).toHaveText('2')
+
+  // O código da última mensagem vale também para a primeira encomenda.
+  await page.getByRole('button', { name: 'Entregar para Maria Fernanda Oliveira' }).click()
+  await page.getByLabel('Código de retirada').fill(codigo)
+  await page.getByRole('button', { name: 'Confirmar entrega' }).click()
+  await expect(page.getByTestId('contador-aguardando')).toHaveText('1')
 })
 
-test('recebe por foto, completa o pedido por passos e entrega com código e assinatura', async ({ page }) => {
+test('"outra encomenda" já vem com a empresa, e o aviso da lista salva o número digitado', async ({ page }) => {
+  // O WhatsApp abriria numa aba nova: o teste só guarda o endereço que seria aberto.
+  await page.addInitScript(() => {
+    window.open = ((url?: string | URL) => {
+      ;(window as unknown as { abriu: string }).abriu = String(url)
+      return null
+    }) as typeof window.open
+  })
+  await comecarTurno(page)
+  await receberPorCodigo(page, 'CC333333333BR', 'Financeiro')
+  await expect(page.getByRole('heading', { name: 'Encomenda registrada' })).toBeVisible()
+  await page.getByRole('button', { name: 'Outra encomenda para Empresa de teste' }).click()
+
+  await page.getByRole('button', { name: /Escanear código/ }).click()
+  await page.getByLabel('Código digitado').fill('DD444444444BR')
+  await page.getByRole('button', { name: 'Usar código' }).click()
+  await expect(page.getByText('Empresa identificada')).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Empresa' })).toContainText('Empresa de teste')
+  await expect(page.getByRole('radio', { name: 'Financeiro' })).toBeChecked()
+  await proximo(page)
+  await proximo(page)
+  await fotoDoPacote(page)
+  await proximo(page)
+  await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+  await concluir(page, /^Olá, Financeiro! Chegaram 2 encomendas para você na portaria\./)
+
+  // Botão do WhatsApp na lista: avisa a pilha toda. Sem número no cadastro, digita uma vez e fica salvo.
+  await page.getByRole('button', { name: 'Avisar Empresa de teste no WhatsApp' }).click()
+  await expect(page.getByRole('heading', { name: 'Avisar pelo WhatsApp' })).toBeVisible()
+  await expect(page.getByTestId('codigo-retirada')).toHaveText(/^\d{6}$/)
+  await expect(page.getByLabel('WhatsApp do destinatário')).toHaveValue('')
+  await page.getByLabel('WhatsApp do destinatário').fill('(13) 98888-7777')
+  await expect(page.getByText('Ao avisar, este número fica salvo no cadastro de Financeiro.')).toBeVisible()
+  await page.getByRole('button', { name: 'Avisar o morador' }).click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { abriu?: string }).abriu)).toMatch(/^https:\/\/wa\.me\/5513988887777\?text=/)
+  await expect(page.getByText('Número salvo no cadastro de Financeiro.')).toBeVisible()
+  await page.getByRole('button', { name: 'Concluir' }).click()
+
+  await page.getByRole('button', { name: 'Avisar Empresa de teste no WhatsApp' }).click()
+  await expect(page.getByLabel('WhatsApp do destinatário')).toHaveValue('5513988887777')
+  await expect(page.getByText('Número do cadastro.')).toBeVisible()
+})
+
+test('recebe por foto, completa o pedido por passos e entrega sem código, com justificativa', async ({ page }) => {
   await comecarTurno(page)
   await expect(page.getByText('Nenhuma encomenda aguardando')).toBeVisible()
   await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
@@ -153,14 +192,15 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   await expect(page.getByRole('button', { name: 'Confirmar entrega' })).toBeDisabled()
   await page.getByRole('button', { name: 'Morador sem o código' }).click()
   await page.getByLabel('Justificativa').fill('Entregue na recepção da empresa')
-  await assinar(page)
+  // Sem assinatura: a entrega vale pelo código ou pela justificativa.
+  await expect(page.getByTestId('assinatura')).toHaveCount(0)
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
 
   await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
   await page.getByRole('radio', { name: /Retiradas/ }).click()
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 
-  // A encomenda retirada abre o histórico: quem retirou, como foi entregue e a assinatura.
+  // A encomenda retirada abre o histórico: quem retirou e como foi entregue.
   await page.getByRole('button', { name: 'Ver detalhes de Maria Fernanda Oliveira' }).click()
   await expect(page.getByRole('heading', { name: 'Encomenda retirada' })).toBeVisible()
   const linhaDoTempo = page.getByRole('region', { name: 'Linha do tempo' })
@@ -168,7 +208,7 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   await expect(linhaDoTempo).toContainText('Entregue por Carlos')
   await expect(linhaDoTempo).toContainText('Sem código de retirada')
   await expect(linhaDoTempo).toContainText('Entregue na recepção da empresa')
-  await expect(page.getByRole('img', { name: 'Assinatura' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Foto do pacote' })).toBeVisible()
   await page.getByRole('button', { name: 'Voltar' }).click()
   await expect(page.getByRole('heading', { name: 'Encomendas' })).toBeVisible()
 })
@@ -200,7 +240,6 @@ test('código de retirada: o da mensagem libera a entrega, um errado é recusado
 
   await page.getByRole('button', { name: /Entregar para Maria Fernanda/ }).click()
   await page.getByLabel('Código de retirada').fill(codigo === '123456' ? '654321' : '123456')
-  await assinar(page)
   await page.getByRole('button', { name: 'Confirmar entrega' }).click()
   await expect(page.getByRole('alert')).toContainText('Restam 4 tentativa(s)')
 

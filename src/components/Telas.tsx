@@ -1,6 +1,8 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { Camera, Check, ChevronDown, ChevronRight, LogOut, Package, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
+import { siWhatsapp } from 'simple-icons'
+import { useAnimacao } from '../lib/animacao'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gsap, useGSAP } from '../lib/gsap'
 import { dados, type Condicao, type Destinatario, type Empresa, type Encomenda, type TipoPacote } from '../lib/data'
@@ -144,19 +146,48 @@ function agruparPorDia(itens: Encomenda[], campoData: 'recebido_em' | 'retirado_
 
 const linhaBotao = 'flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6'
 
-function LinhaAguardando({ e, aoEntregar }: { e: Encomenda; aoEntregar: (e: Encomenda) => void }) {
+/** Botão redondo do WhatsApp na lista: avisa o destino da linha (ou da pilha) com um código só. */
+function BotaoAvisar({ rotulo, aoClicar }: { rotulo: string; aoClicar: () => void }) {
   return (
-    <button onClick={() => aoEntregar(e)} aria-label={`Entregar para ${e.destinatario_nome}`} data-linha className={linhaBotao}>
-      <div className="min-w-0 flex-1">
-        <CartaoPedido e={e} linha />
-      </div>
-      <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
-        <time className="num text-base" dateTime={e.recebido_em}>
-          {hora.format(new Date(e.recebido_em))}
-        </time>
-        <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
-      </span>
+    <button
+      type="button"
+      onClick={aoClicar}
+      aria-label={rotulo}
+      title={rotulo}
+      className="mr-4 grid size-11 shrink-0 cursor-pointer place-items-center rounded-full bg-[#25D366] text-[#06290f] transition duration-[120ms] hover:bg-[#1fbe5b] active:translate-y-px md:mr-6"
+    >
+      <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
+        <path d={siWhatsapp.path} />
+      </svg>
     </button>
+  )
+}
+
+function LinhaAguardando({
+  e,
+  aoEntregar,
+  aoAvisar,
+}: {
+  e: Encomenda
+  aoEntregar: (e: Encomenda) => void
+  /** Sem esta função (dentro de uma pilha), a linha não tem o botão do WhatsApp: o aviso é da pilha toda. */
+  aoAvisar?: (e: Encomenda) => void
+}) {
+  return (
+    <div className="flex items-center">
+      <button onClick={() => aoEntregar(e)} aria-label={`Entregar para ${e.destinatario_nome}`} data-linha className={`${linhaBotao} min-w-0 flex-1`}>
+        <div className="min-w-0 flex-1">
+          <CartaoPedido e={e} linha />
+        </div>
+        <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+          <time className="num text-base" dateTime={e.recebido_em}>
+            {hora.format(new Date(e.recebido_em))}
+          </time>
+          <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
+        </span>
+      </button>
+      {aoAvisar && <BotaoAvisar rotulo={`Avisar ${e.destinatario_nome} no WhatsApp`} aoClicar={() => aoAvisar(e)} />}
+    </div>
   )
 }
 
@@ -182,25 +213,29 @@ function LinhaPilha({
   aberta,
   aoAlternar,
   aoEntregar,
+  aoAvisar,
 }: {
   pilha: Pilha
   titulo: string
   aberta: boolean
   aoAlternar: () => void
   aoEntregar: (e: Encomenda) => void
+  aoAvisar: (e: Encomenda) => void
 }) {
+  const { reduzir } = useAnimacao()
   const n = pilha.itens.length
   const recente = pilha.itens[0]
   const nomes = [...new Set(pilha.itens.map((e) => e.destinatario_nome))]
   const dias = diasParado(pilha.itens[n - 1])
   return (
     <div>
+      <div className="flex items-center">
       <button
         onClick={aoAlternar}
         aria-expanded={aberta}
         aria-label={`${n} encomendas para ${titulo}`}
         data-linha
-        className="flex w-full cursor-pointer items-start gap-4 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
+        className="flex min-w-0 flex-1 cursor-pointer items-start gap-4 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
       >
         <span className="relative shrink-0" style={{ width: 62, height: 52 }} aria-hidden>
           <span className="absolute top-2 left-4 size-11 rounded-campo border border-line bg-s3" />
@@ -229,18 +264,37 @@ function LinhaPilha({
           <time className="num text-base" dateTime={recente.recebido_em}>
             {hora.format(new Date(recente.recebido_em))}
           </time>
-          <ChevronDown className={`size-5 transition duration-200 ${aberta ? 'rotate-180' : ''}`} strokeWidth={1.75} aria-hidden />
+          <ChevronDown className={`size-5 transition duration-300 ${aberta ? 'rotate-180' : ''}`} strokeWidth={1.75} aria-hidden />
         </span>
       </button>
-      {aberta && (
-        <ul className="m-0 list-none divide-y divide-line border-t border-line p-0" aria-label={`Encomendas para ${titulo}`}>
-          {pilha.itens.map((e) => (
-            <li key={e.id} className="border-l-2 border-accent">
-              <LinhaAguardando e={e} aoEntregar={aoEntregar} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <BotaoAvisar rotulo={`Avisar ${titulo} no WhatsApp`} aoClicar={() => aoAvisar(recente)} />
+      </div>
+      {/* A pilha abre crescendo e as encomendas descem uma de cada vez, como cartas saindo do monte. */}
+      <AnimatePresence initial={false}>
+        {aberta && (
+          <motion.ul
+            key="itens"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: reduzir ? 0.12 : 0.42, ease: [0.16, 1, 0.3, 1] }}
+            className="m-0 list-none divide-y divide-line overflow-hidden border-t border-line p-0"
+            aria-label={`Encomendas para ${titulo}`}
+          >
+            {pilha.itens.map((e, i) => (
+              <motion.li
+                key={e.id}
+                initial={reduzir ? { opacity: 0 } : { opacity: 0, y: -14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: reduzir ? 0.12 : 0.45, delay: reduzir ? 0 : 0.06 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+                className="border-l-2 border-accent"
+              >
+                <LinhaAguardando e={e} aoEntregar={aoEntregar} />
+              </motion.li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -263,6 +317,7 @@ export function Inicio({
   aoNova,
   aoEntregar,
   empresas,
+  aoAvisar,
   aoAbrir,
   aoTrocarTurno,
   aoSair,
@@ -277,6 +332,8 @@ export function Inicio({
   aoEntregar: (e: Encomenda) => void
   /** Empresas do prédio, para dar nome às pilhas. */
   empresas?: Empresa[]
+  /** Abre o aviso pelo WhatsApp de tudo que aguarda para o destino desta encomenda. */
+  aoAvisar: (e: Encomenda) => void
   /** Abre o histórico de uma encomenda já retirada. */
   aoAbrir: (e: Encomenda) => void
   aoTrocarTurno?: () => void
@@ -457,9 +514,10 @@ export function Inicio({
                                 aberta={abertas.has(pilha.chave)}
                                 aoAlternar={() => alternarPilha(pilha.chave)}
                                 aoEntregar={aoEntregar}
+                                aoAvisar={aoAvisar}
                               />
                             ) : e.status !== 'retirada' ? (
-                              <LinhaAguardando e={e} aoEntregar={aoEntregar} />
+                              <LinhaAguardando e={e} aoEntregar={aoEntregar} aoAvisar={aoAvisar} />
                             ) : (
                               <LinhaRetirada e={e} aoAbrir={aoAbrir} />
                             )}
