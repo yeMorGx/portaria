@@ -91,7 +91,7 @@ function Lendo({ previa, etapa, texto }: { previa: string | null; etapa: Etapa; 
       <div ref={raiz} role="status" className="space-y-4">
         <div className="tile cantos relative overflow-hidden !border-0 bg-black">
           {previa && <img src={previa} alt="" className="max-h-72 w-full object-contain md:max-h-96" />}
-          <div className="varredura absolute inset-x-0 top-0 h-1 bg-accent shadow-[0_0_24px_4px_var(--accent)]" />
+          <div className="varredura absolute inset-x-0 top-0 h-1 bg-accent" />
         </div>
         <p className="m-0 text-lg font-semibold">{etapa === 'ocr' ? 'Reconhecendo o texto…' : 'Procurando o morador…'}</p>
         {etapa === 'busca' && !!linhas.length && (

@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { gsap, useGSAP } from '../lib/gsap'
 import { dados, type Condicao, type Destinatario, type Empresa, type Encomenda, type TipoPacote } from '../lib/data'
 import type { Morador } from '../lib/parser'
-import { Holofote, NumeroAnimado, TituloLetras } from './Cinema'
+import { NumeroAnimado, TituloLetras } from './Cinema'
+import { AlternarTema } from './AlternarTema'
 import { ControleAnimacao } from './ControleAnimacao'
 import { CONDICOES, CartaoPedido, TIPOS } from './Pedido'
 import { ChipsUnico, Contador, SeletorMarca, SeletorMorador } from './Selecao'
@@ -24,7 +25,10 @@ export function Login({ aoEntrar }: { aoEntrar: () => void }) {
     <Pagina className="flex min-h-screen flex-col justify-center md:max-w-lg">
       <Aparecer>
         <div className="tile cantos p-6 pt-10 md:p-8 md:pt-12">
-          <Marca />
+          <div className="flex items-center justify-between gap-3">
+            <Marca />
+            <AlternarTema />
+          </div>
           <Titulo className="mt-8 md:!text-[32px] md:!leading-9">Entrar na portaria</Titulo>
           <p className="m-0 mt-2 mb-6 text-muted">Use a conta da portaria para registrar encomendas.</p>
           <form
@@ -87,7 +91,10 @@ export function Turno({ aoConfirmar }: { aoConfirmar: (nome: string) => void }) 
             if (nome.trim().length >= 2) aoConfirmar(nome.trim())
           }}
         >
-          <Marca />
+          <div className="flex items-center justify-between gap-3">
+            <Marca />
+            <AlternarTema />
+          </div>
           <Titulo className="mt-4 md:!text-[32px] md:!leading-9">Quem está na portaria?</Titulo>
           <p className="m-0 text-muted">O nome fica registrado em cada encomenda recebida e entregue neste turno.</p>
           <input
@@ -194,6 +201,7 @@ export function Inicio({
         <Marca />
         <div className="flex items-center gap-1">
           <ControleAnimacao />
+          <AlternarTema />
           {aoCadastro && (
             <Botao variante="fantasma" onClick={aoCadastro} className="!min-h-11 !gap-2 !px-3">
               Cadastro
@@ -216,7 +224,7 @@ export function Inicio({
 
       <div ref={grade} className="grid grid-cols-2 gap-4 md:grid-cols-12 lg:gap-6">
         <Aparecer i={0} className="col-span-2 md:col-span-8">
-          <Holofote className="rounded-tile">
+          <div className="rounded-tile">
           <button
             onClick={aoNova}
             className="cantos relative flex min-h-44 w-full cursor-pointer flex-col justify-between overflow-hidden rounded-tile bg-accent p-6 pt-10 text-left text-on-accent shadow-[var(--shadow-primary)] transition duration-[120ms] hover:-translate-y-0.5 hover:bg-accent-strong active:translate-y-px md:min-h-56 md:p-8 md:pt-12"
@@ -234,7 +242,7 @@ export function Inicio({
               </span>
             </span>
           </button>
-          </Holofote>
+          </div>
         </Aparecer>
 
         <Aparecer i={1} className="col-span-2 md:col-span-4">
@@ -273,7 +281,7 @@ export function Inicio({
                   <ToggleGroup.Item
                     key={valor}
                     value={valor}
-                    className="min-h-11 cursor-pointer rounded-full px-4 text-sm font-medium transition duration-[120ms] data-[state=on]:bg-s1 data-[state=on]:shadow-sm"
+                    className="min-h-11 cursor-pointer rounded-full px-4 text-sm font-medium transition duration-[120ms] data-[state=on]:bg-s1"
                   >
                     {rotulo} <span className="num text-muted">{n}</span>
                   </ToggleGroup.Item>
@@ -486,7 +494,7 @@ export function Conferencia({
     <Pagina>
       <Cabecalho titulo="Conferir encomenda" passo={3} voltar={passo === 0 ? aoCancelar : () => setPasso(passo - 1)} />
 
-      <div className="space-y-2">
+      <div className="mb-6 space-y-3 md:mb-8">
         <p className="rotulo m-0">
           Passo {passo + 1} de {PASSOS_CONFERENCIA.length}: {PASSOS_CONFERENCIA[passo]}
         </p>
@@ -518,7 +526,7 @@ export function Conferencia({
         {passo === 0 && (
           <>
             <Aparecer i={1} className="lg:col-span-8">
-              <Tile className={identificado ? 'pulso' : ''}>
+              <Tile>
                 <p
                   className={`m-0 flex items-center gap-2 text-sm font-medium ${identificado ? 'text-ok' : 'text-warn'}`}
                   role="status"

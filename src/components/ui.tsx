@@ -1,6 +1,7 @@
 import { ArrowLeft, Package, RotateCw } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useAnimacao } from '../lib/animacao'
+import { AlternarTema } from './AlternarTema'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 const EASE_SAIDA = [0.16, 1, 0.3, 1] as const
@@ -77,7 +78,7 @@ export function Pagina({ children, className = '' }: { children: ReactNode; clas
 export function Marca() {
   return (
     <span className="inline-flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em]">
-      <span className="grid size-9 place-items-center rounded-campo bg-accent text-on-accent">
+      <span className="grid size-9 place-items-center rounded-campo bg-ink text-bg">
         <Package className="size-5" strokeWidth={1.75} />
       </span>
       Portaria
@@ -115,7 +116,10 @@ export function Cabecalho({
         ) : (
           <Marca />
         )}
-        {passo ? <Passo atual={passo} /> : direita}
+        <div className="flex items-center gap-2">
+          {passo ? <Passo atual={passo} /> : direita}
+          <AlternarTema />
+        </div>
       </div>
       <Titulo>{titulo}</Titulo>
     </header>

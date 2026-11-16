@@ -3,7 +3,7 @@ import * as ToggleGroup from '@radix-ui/react-toggle-group'
 import { Command } from 'cmdk'
 import { Check, ChevronsUpDown, Minus, Plus, Search } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { LOJAS, TRANSPORTADORAS, logoOficial, type TipoMarca } from '../lib/marcas'
+import { LOJAS, TRANSPORTADORAS, type TipoMarca } from '../lib/marcas'
 import type { Morador } from '../lib/parser'
 import { LogoMarca } from './Logo'
 
@@ -130,12 +130,7 @@ export function SeletorMarca({
         }}
       >
         {visiveis.map((m) => (
-          <ToggleGroup.Item
-            key={m.id}
-            value={m.nome}
-            className={chipBase}
-            style={logoOficial(m.id) ? { backgroundColor: m.cor, color: m.corTexto, borderColor: 'transparent' } : undefined}
-          >
+          <ToggleGroup.Item key={m.id} value={m.nome} className={chipBase}>
             <LogoMarca marca={m} tamanho={28} />
             {m.nome}
           </ToggleGroup.Item>

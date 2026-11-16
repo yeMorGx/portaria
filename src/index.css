@@ -2,47 +2,73 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
-/* Tokens do DESIGN.md. Mobile-first: estilos base para 390 px, ampliados com md: e lg:. */
-:root {
-  --bg: #f4f4f0;
-  --surface-1: #ffffff;
-  --surface-2: #eeeef4;
-  --surface-3: #e3e4ee;
-  --text: #15152b;
-  --text-2: #575772;
-  --border: rgb(21 21 43 / 0.1);
-  --accent: #4338ca;
-  --accent-strong: #3730a3;
-  --accent-soft: #e7e6fa;
+/*
+ * Cores em 60-30-10, iguais em estrutura nos dois temas.
+ * 60% fundo (--bg) · 30% cartões, menus e superfícies (--surface-1, com --border) · 10% destaque (--accent),
+ * só em botões principais, links, ícones e indicadores ativos. O destaque é o mesmo nos dois temas.
+ * --surface-2 é o fundo de campos e chips dentro de cartões (igual ao fundo da página); --surface-3 é o hover.
+ * O tema vem de html[data-theme] (definido antes da pintura em index.html e pelo botão de tema);
+ * sem ele, segue o sistema.
+ */
+:root,
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --surface-1: #f1f5f9;
+  --surface-2: #ffffff;
+  --surface-3: #e2e8f0;
+  --text: #0f172a;
+  --text-2: #475569;
+  --border: #e2e8f0;
+  --accent: #6366f1;
+  --accent-strong: #4f46e5;
+  --accent-soft: #eef2ff;
   --on-accent: #ffffff;
-  --success: #137a4b;
-  --warning: #8f5a00;
-  --danger: #b42318;
-  --shadow-overlay: 0 8px 24px -8px rgb(21 21 43 / 0.18), 0 1px 2px rgb(21 21 43 / 0.08);
-  --shadow-primary: 0 1px 2px rgb(21 21 43 / 0.2), 0 8px 16px -8px rgb(67 56 202 / 0.6);
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  /* Só menus flutuantes têm sombra, e discreta. Botões e cartões são planos. */
+  --shadow-overlay: 0 4px 12px rgb(15 23 42 / 0.08);
+  --shadow-primary: none;
   --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-tela: cubic-bezier(0.4, 0, 0.2, 1);
   color-scheme: light;
 }
 
+:root[data-theme='dark'] {
+  --bg: #09090b;
+  --surface-1: #18181b;
+  --surface-2: #09090b;
+  --surface-3: #27272a;
+  --text: #f8fafc;
+  --text-2: #a1a1aa;
+  --border: #27272a;
+  --accent: #6366f1;
+  --accent-strong: #4f46e5;
+  --accent-soft: #1e1b4b;
+  --on-accent: #ffffff;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --shadow-overlay: 0 4px 12px rgb(0 0 0 / 0.4);
+  --shadow-primary: none;
+  color-scheme: dark;
+}
+
+/* Sem escolha salva e sem script: segue o sistema. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0c0c14;
-    --surface-1: #14141f;
-    --surface-2: #1c1c2a;
-    --surface-3: #262637;
-    --text: #eeeef6;
-    --text-2: #a2a2bc;
-    --border: rgb(238 238 246 / 0.1);
-    --accent: #8b84f5;
-    --accent-strong: #a8a2f8;
-    --accent-soft: #23214a;
-    --on-accent: #0c0c1f;
-    --success: #4fd08f;
-    --warning: #f0b45a;
-    --danger: #ff8a80;
-    --shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-primary: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 16px -8px rgb(139 132 245 / 0.5);
+  :root:not([data-theme]) {
+    --bg: #09090b;
+    --surface-1: #18181b;
+    --surface-2: #09090b;
+    --surface-3: #27272a;
+    --text: #f8fafc;
+    --text-2: #a1a1aa;
+    --border: #27272a;
+    --accent-soft: #1e1b4b;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --shadow-overlay: 0 4px 12px rgb(0 0 0 / 0.4);
     color-scheme: dark;
   }
 }

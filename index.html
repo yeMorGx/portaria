@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Portaria — Encomendas</title>
+    <script>
+      // Aplica o tema antes da primeira pintura, sem piscar: escolha salva ou, sem ela, o sistema.
+      try {
+        var t = localStorage.getItem('portaria.tema')
+        if (t !== 'claro' && t !== 'escuro') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
+        document.documentElement.dataset.theme = t === 'escuro' ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

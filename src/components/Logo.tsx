@@ -1,7 +1,7 @@
 import { logoOficial, marcaPorNome, type Marca } from '../lib/marcas'
 
 /**
- * Logo de loja ou transportadora. Usa `src/assets/logos/<id>.svg` quando existe;
+ * Logo de loja ou transportadora. Usa o ícone quadrado em `src/assets/logos/<id>.(svg|png|jpg)` quando existe;
  * senão, o ícone de domínio público ou um selo com a cor e a sigla da marca.
  */
 export function LogoMarca({
@@ -41,7 +41,7 @@ export function LogoMarca({
         m.sigla
       )}
       {logoOficial(m.id) && (
-        <img src={logoOficial(m.id)} alt="" className="absolute inset-0 size-full bg-white object-contain p-1" />
+        <img src={logoOficial(m.id)} alt="" className="absolute inset-0 size-full object-cover" />
       )}
     </span>
   )

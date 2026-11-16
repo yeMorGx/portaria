@@ -87,8 +87,7 @@ export const Visor = forwardRef<VisorApi, { modo: 'foto' | 'codigo'; dica: strin
           <span data-canto className={`${CANTO} right-0 bottom-0 rounded-br-2xl border-r-[3px] border-b-[3px]`} />
           <span
             data-laser
-            className="absolute inset-x-2 h-[2px] rounded-full bg-[#a5a0ff]"
-            style={{ boxShadow: '0 0 18px 4px rgb(139 132 245 / 0.85)' }}
+            className="absolute inset-x-2 h-[2px] rounded-full bg-accent"
           />
           <span
             data-visto

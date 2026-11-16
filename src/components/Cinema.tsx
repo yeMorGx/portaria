@@ -46,7 +46,7 @@ export const Cortina = forwardRef<CortinaApi>(function Cortina(_, ref) {
   return (
     <div ref={raiz} aria-hidden className="pointer-events-none invisible fixed inset-0 z-[60] flex">
       {Array.from({ length: FAIXAS }, (_, i) => (
-        <div key={i} data-faixa className={`h-full flex-1 ${i % 2 ? 'bg-accent-strong' : 'bg-accent'}`} style={{ transform: 'scaleY(0)' }} />
+        <div key={i} data-faixa className={`h-full flex-1 ${i % 2 ? 'bg-s3' : 'bg-s1'}`} style={{ transform: 'scaleY(0)' }} />
       ))}
     </div>
   )
@@ -86,7 +86,7 @@ export function Abertura() {
   return (
     <main ref={raiz} className="relative grid min-h-screen overflow-hidden px-6 py-8" role="status" aria-label="Carregando">
       <div className="flex items-start justify-between">
-        <span data-selo className="grid size-11 place-items-center rounded-botao bg-accent text-on-accent">
+        <span data-selo className="grid size-11 place-items-center rounded-botao bg-ink text-bg">
           <Package className="size-6" strokeWidth={1.75} />
         </span>
         <span data-sub className="rotulo">
@@ -205,13 +205,13 @@ export function Celebracao({
     <div
       ref={raiz}
       role="status"
-      className="fixed inset-0 z-[70] grid place-items-center bg-accent px-6 text-center text-on-accent"
+      className="fixed inset-0 z-[70] grid place-items-center bg-bg px-6 text-center text-ink"
       style={{ clipPath: 'circle(0% at 50% 55%)' }}
     >
       <div className="flex flex-col items-center gap-8">
         <div className="relative grid size-32 place-items-center">
-          <span data-pulso className="absolute inset-0 rounded-full bg-on-accent/20" />
-          <svg viewBox="0 0 100 100" className="relative size-32" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round">
+          <span data-pulso className="absolute inset-0 rounded-full bg-accent-soft" />
+          <svg viewBox="0 0 100 100" className="relative size-32 text-accent" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round">
             <circle data-anel cx="50" cy="50" r="44" />
             <path data-visto d="M30 52 L44 66 L71 36" />
           </svg>
@@ -220,7 +220,7 @@ export function Celebracao({
           {titulo}
         </h2>
         {subtitulo && (
-          <p data-celebracao-sub className="m-0 max-w-md text-lg text-on-accent/80">
+          <p data-celebracao-sub className="m-0 max-w-md text-lg text-muted">
             {subtitulo}
           </p>
         )}
