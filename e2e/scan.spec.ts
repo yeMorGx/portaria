@@ -64,5 +64,9 @@ test('lê um QR Code de verdade pela câmera e trava no alvo', async ({ page }) 
   }
   await expect(page.getByRole('heading', { name: 'Conferir encomenda' })).toBeVisible({ timeout: 20000 })
   await expect(page.getByText('Não foi possível identificar a empresa')).toBeVisible()
+  // Sem empresa, o passo 1 não avança: escolhe a empresa para chegar à loja e transportadora.
+  await page.getByRole('combobox', { name: 'Empresa' }).click()
+  await page.getByRole('option', { name: /Empresa de teste/ }).click()
+  await page.getByRole('button', { name: 'Próximo' }).click()
   await expect(page.getByRole('radio', { name: 'Correios', exact: true })).toBeChecked()
 })

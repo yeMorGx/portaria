@@ -43,14 +43,24 @@ async function assinar(page: Page) {
   await page.mouse.up()
 }
 
-// Escolhe a empresa e, se houver, o destinatário na conferência.
+// Passo 1 da conferência: escolhe a empresa e, se houver, o destinatário.
 async function escolherEmpresa(page: Page, destinatario?: string) {
   await page.getByRole('combobox', { name: 'Empresa' }).click()
   await page.getByRole('option', { name: /Empresa de teste/ }).click()
   if (destinatario) await page.getByRole('radio', { name: destinatario }).click()
 }
 
-test('recebe por foto, completa o pedido e entrega com código e assinatura', async ({ page }) => {
+// Passo 3 da conferência: a foto do pacote é obrigatória para salvar.
+async function fotoDoPacote(page: Page) {
+  const png = await etiqueta(page, ['PACOTE'])
+  await page.getByTestId('foto-pacote').setInputFiles({ name: 'pacote.png', mimeType: 'image/png', buffer: png })
+}
+
+async function proximo(page: Page) {
+  await page.getByRole('button', { name: 'Próximo' }).click()
+}
+
+test('recebe por foto, completa o pedido por passos e entrega com código e assinatura', async ({ page }) => {
   await comecarTurno(page)
   await expect(page.getByText('Nenhuma encomenda aguardando')).toBeVisible()
   await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
@@ -60,18 +70,29 @@ test('recebe por foto, completa o pedido e entrega com código e assinatura', as
   const png = await etiqueta(page, ['CORREIOS SEDEX', 'Empresa de teste', 'Sala 101'])
   await page.getByTestId('arquivo-foto').setInputFiles({ name: 'etiqueta.png', mimeType: 'image/png', buffer: png })
 
+  // Passo 1: empresa e destinatário
   await expect(page.getByRole('heading', { name: 'Conferir encomenda' })).toBeVisible({ timeout: 90_000 })
   await expect(page.getByRole('combobox', { name: 'Empresa' })).toContainText('Empresa de teste')
-  await expect(page.getByRole('radio', { name: 'Correios', exact: true })).toBeChecked()
   await page.getByRole('radio', { name: 'Maria Fernanda Oliveira' }).click()
+  await proximo(page)
 
+  // Passo 2: loja e transportadora
+  await expect(page.getByRole('radio', { name: 'Correios', exact: true })).toBeChecked()
   await page.getByRole('radio', { name: 'Shopee', exact: true }).first().click()
+  await proximo(page)
+
+  // Passo 3: pacote, com foto obrigatória
   await page.getByRole('radio', { name: 'Envelope' }).click()
   await page.getByRole('button', { name: 'Aumentar' }).click()
   await page.getByRole('radio', { name: 'Frágil' }).click()
-  await page.getByRole('radio', { name: 'Prateleira A' }).click()
+  await expect(page.getByRole('button', { name: 'Próximo' })).toBeDisabled()
+  await fotoDoPacote(page)
+  await proximo(page)
 
+  // Passo 4: guarda e revisão
+  await page.getByRole('radio', { name: 'Prateleira A' }).click()
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+
   const lista = page.getByTestId('lista')
   await expect(lista).toContainText('Maria Fernanda Oliveira')
   await expect(lista).toContainText('Envelope · 2 volumes')
@@ -102,8 +123,12 @@ test('seleção manual da empresa quando a etiqueta não identifica', async ({ p
   await page.getByRole('button', { name: 'Usar código' }).click()
 
   await expect(page.getByText('Não foi possível identificar a empresa')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Salvar Encomenda' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Próximo' })).toBeDisabled()
   await escolherEmpresa(page, 'Financeiro')
+  await proximo(page)
+  await proximo(page)
+  await fotoDoPacote(page)
+  await proximo(page)
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
   await expect(page.getByTestId('lista')).toContainText('Financeiro')
 })
@@ -115,6 +140,10 @@ test('código de retirada: errado é recusado com tentativas restantes', async (
   await page.getByLabel('Código digitado').fill('AB123456789BR')
   await page.getByRole('button', { name: 'Usar código' }).click()
   await escolherEmpresa(page, 'Maria Fernanda Oliveira')
+  await proximo(page)
+  await proximo(page)
+  await fotoDoPacote(page)
+  await proximo(page)
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 
