@@ -53,11 +53,11 @@ export const MARCAS: Marca[] = [
   { id: 'fedex', nome: 'FedEx', tipo: 'transportadora', chaves: ['fedex'], cor: '#4D148C', corTexto: '#FFFFFF', sigla: 'Fx', icone: siFedex.path },
 ]
 
-const arquivos = import.meta.glob<string>('../assets/logos/*.svg', { eager: true, query: '?url', import: 'default' })
+const arquivos = import.meta.glob<string>('../assets/logos/*.{svg,png}', { eager: true, query: '?url', import: 'default' })
 
-/** Endereço do logo oficial da marca, se o arquivo existir em src/assets/logos. */
+/** Endereço do logo oficial da marca, se existir em src/assets/logos (SVG ou PNG). */
 export function logoOficial(id: string): string | undefined {
-  return arquivos[`../assets/logos/${id}.svg`]
+  return arquivos[`../assets/logos/${id}.svg`] ?? arquivos[`../assets/logos/${id}.png`]
 }
 
 export const LOJAS = MARCAS.filter((m) => m.tipo === 'loja')

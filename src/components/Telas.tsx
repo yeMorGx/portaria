@@ -413,7 +413,8 @@ export interface Rascunho {
   foto_pacote: Blob | null
 }
 
-const LOCAIS = ['Prateleira A', 'Prateleira B', 'Armário', 'Sala de encomendas', 'Geladeira']
+const LOCAIS = ['Recepção', 'Prateleira A', 'Prateleira B', 'Armário', 'Sala de encomendas', 'Geladeira']
+const PASSOS_CONFERENCIA = ['Empresa', 'Loja e transportadora', 'Pacote', 'Guarda e revisão']
 
 function Tile({ rotulo, children, className = '' }: { rotulo?: string; children: React.ReactNode; className?: string }) {
   return (
@@ -439,6 +440,7 @@ export function Conferencia({
   aoSalvar: (r: Rascunho) => void
   aoCancelar: () => void
 }) {
+  const [passo, setPasso] = useState(0)
   const [empresaId, setEmpresaId] = useState(rascunho.empresa_id ?? '')
   const [destinatarioId, setDestinatarioId] = useState(rascunho.destinatario_id ?? '')
   const [destinatarios, setDestinatarios] = useState<Destinatario[]>([])
@@ -471,21 +473,38 @@ export function Conferencia({
   const mudar = <K extends keyof Rascunho>(k: K, v: Rascunho[K]) => setF((x) => ({ ...x, [k]: v }))
   const previaPacote = useMemo(() => (f.foto_pacote ? URL.createObjectURL(f.foto_pacote) : null), [f.foto_pacote])
 
+  // Cada passo só libera o próximo quando o que é obrigatório estiver preenchido.
+  const bloqueio =
+    passo === 0 && !empresa
+      ? 'Selecione a empresa para continuar.'
+      : passo === 2 && !f.foto_pacote
+        ? 'A foto do pacote é obrigatória para continuar.'
+        : null
+  const ultimo = passo === PASSOS_CONFERENCIA.length - 1
+
   return (
     <Pagina>
-      <Cabecalho titulo="Conferir encomenda" passo={3} voltar={aoCancelar} />
+      <Cabecalho titulo="Conferir encomenda" passo={3} voltar={passo === 0 ? aoCancelar : () => setPasso(passo - 1)} />
+
+      <div className="space-y-2">
+        <p className="rotulo m-0">
+          Passo {passo + 1} de {PASSOS_CONFERENCIA.length}: {PASSOS_CONFERENCIA[passo]}
+        </p>
+        <div className="flex gap-2" aria-hidden="true">
+          {PASSOS_CONFERENCIA.map((_, i) => (
+            <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= passo ? 'bg-accent' : 'bg-s3'}`} />
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-12 lg:gap-6">
-        <Aparecer i={0} className="lg:col-span-4 lg:row-span-3">
-          <div className="tile overflow-hidden lg:h-full">
+        <Aparecer i={0} className="lg:col-span-12">
+          <div className="tile overflow-hidden">
             {rascunho.fotoUrl ? (
-              <img
-                src={rascunho.fotoUrl}
-                alt="Foto da etiqueta"
-                className="max-h-64 w-full bg-s2 object-contain lg:h-full lg:max-h-none"
-              />
+              <img src={rascunho.fotoUrl} alt="Foto da etiqueta" className="max-h-48 w-full bg-s2 object-contain" />
             ) : (
               <div className="p-6 text-muted">
-                <p className="m-0">Sem foto.</p>
+                <p className="m-0">Sem foto da etiqueta.</p>
                 {rascunho.codigo && (
                   <p className="m-0 mt-3 break-all text-sm">
                     Código lido: <code className="num">{rascunho.codigo}</code>
@@ -496,160 +515,191 @@ export function Conferencia({
           </div>
         </Aparecer>
 
-        <Aparecer i={1} className="lg:col-span-5">
-          <Tile className={identificado ? 'pulso' : ''}>
-            <p
-              className={`m-0 flex items-center gap-2 text-sm font-medium ${identificado ? 'text-ok' : 'text-warn'}`}
-              role="status"
-            >
-              {identificado ? <Check className="size-4" strokeWidth={2} /> : <TriangleAlert className="size-4" strokeWidth={2} />}
-              {identificado ? 'Empresa identificada. Confira e salve.' : 'Não foi possível identificar a empresa. Selecione abaixo.'}
-            </p>
-            <div>
-              <p className="rotulo m-0 mb-2">Morador</p>
-              <SeletorMorador
-                moradores={opcoesEmpresas}
-                valor={empresaId}
-                aoMudar={(id) => {
-                  setEmpresaId(id)
-                  setDestinatarioId('')
-                }}
-                rotulo="Empresa"
-              />
-              {destinatarios.length > 0 && (
-                <div className="mt-4">
-                  <p className="rotulo m-0 mb-2">Destinatário (opcional)</p>
-                  <ChipsUnico<string>
-                    valor={destinatarioId}
-                    aoMudar={(v) => setDestinatarioId(v)}
-                    opcoes={destinatarios.map((d) => ({ valor: d.id, rotulo: d.nome }))}
-                    rotulo="Destinatário"
-                    limpavel
+        {passo === 0 && (
+          <>
+            <Aparecer i={1} className="lg:col-span-8">
+              <Tile className={identificado ? 'pulso' : ''}>
+                <p
+                  className={`m-0 flex items-center gap-2 text-sm font-medium ${identificado ? 'text-ok' : 'text-warn'}`}
+                  role="status"
+                >
+                  {identificado ? <Check className="size-4" strokeWidth={2} /> : <TriangleAlert className="size-4" strokeWidth={2} />}
+                  {identificado ? 'Empresa identificada. Confira e siga.' : 'Não foi possível identificar a empresa. Selecione abaixo.'}
+                </p>
+                <div>
+                  <p className="rotulo m-0 mb-2">Empresa</p>
+                  <SeletorMorador
+                    moradores={opcoesEmpresas}
+                    valor={empresaId}
+                    aoMudar={(id) => {
+                      setEmpresaId(id)
+                      setDestinatarioId('')
+                    }}
+                    rotulo="Empresa"
                   />
+                  {destinatarios.length > 0 && (
+                    <div className="mt-4">
+                      <p className="rotulo m-0 mb-2">Destinatário (opcional)</p>
+                      <ChipsUnico<string>
+                        valor={destinatarioId}
+                        aoMudar={(v) => setDestinatarioId(v)}
+                        opcoes={destinatarios.map((d) => ({ valor: d.id, rotulo: d.nome }))}
+                        rotulo="Destinatário"
+                        limpavel
+                      />
+                    </div>
+                  )}
                 </div>
+              </Tile>
+            </Aparecer>
+
+            <Aparecer i={2} className="lg:col-span-4">
+              <Tile rotulo="Andar e sala" className="h-full justify-end">
+                <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="apto">
+                  {empresa ? (empresa.sala ?? empresa.andar ?? '—') : '—'}
+                </p>
+                {empresa?.andar && <p className="m-0 -mt-2 text-muted">{empresa.andar}º andar</p>}
+              </Tile>
+            </Aparecer>
+          </>
+        )}
+
+        {passo === 1 && (
+          <>
+            <Aparecer i={1} className="lg:col-span-12">
+              <Tile rotulo="Onde foi comprado">
+                <SeletorMarca tipo="loja" valor={f.loja} aoMudar={(v) => mudar('loja', v)} rotulo="Loja" />
+              </Tile>
+            </Aparecer>
+            <Aparecer i={2} className="lg:col-span-12">
+              <Tile rotulo="Transportadora">
+                <SeletorMarca tipo="transportadora" valor={f.transportadora} aoMudar={(v) => mudar('transportadora', v)} rotulo="Transportadora" />
+              </Tile>
+            </Aparecer>
+          </>
+        )}
+
+        {passo === 2 && (
+          <Aparecer i={1} className="lg:col-span-12">
+            <Tile rotulo="Pacote">
+              <ChipsUnico<TipoPacote> valor={f.tipo} aoMudar={(v) => v && mudar('tipo', v)} opcoes={TIPOS} rotulo="Tipo de pacote" />
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-base font-medium">Volumes</span>
+                <Contador valor={f.volumes} aoMudar={(n) => mudar('volumes', n)} rotulo="Volumes" />
+              </div>
+              <div>
+                <p className="rotulo m-0 mb-2">Condição</p>
+                <ChipsUnico<Condicao> valor={f.condicao} aoMudar={(v) => v && mudar('condicao', v)} opcoes={CONDICOES} rotulo="Condição do pacote" />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-botao border border-line bg-s2 px-4 text-sm font-medium transition duration-[120ms] hover:bg-s3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-accent">
+                  <Camera className="size-5" strokeWidth={1.75} />
+                  {f.foto_pacote ? 'Trocar foto do pacote' : 'Foto do pacote (obrigatória)'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    data-testid="foto-pacote"
+                    onChange={(e) => e.target.files?.[0] && mudar('foto_pacote', e.target.files[0])}
+                  />
+                </label>
+                {previaPacote && <img src={previaPacote} alt="Foto do pacote" className="size-11 rounded-campo object-cover" />}
+              </div>
+            </Tile>
+          </Aparecer>
+        )}
+
+        {passo === 3 && (
+          <>
+            <Aparecer i={1} className="lg:col-span-12">
+              <Tile rotulo="Local de guarda">
+                <ChipsUnico<string>
+                  valor={LOCAIS.includes(f.local_guarda) ? f.local_guarda : ''}
+                  aoMudar={(v) => mudar('local_guarda', v)}
+                  opcoes={LOCAIS.map((l) => ({ valor: l, rotulo: l }))}
+                  rotulo="Local de guarda"
+                  limpavel
+                />
+                <input
+                  value={f.local_guarda}
+                  onChange={(e) => mudar('local_guarda', e.target.value)}
+                  placeholder="Outro local"
+                  aria-label="Outro local de guarda"
+                  className={campoPequeno}
+                />
+              </Tile>
+            </Aparecer>
+
+            <Aparecer i={2} className="lg:col-span-12">
+              <div className="tile overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setDetalhes((x) => !x)}
+                  aria-expanded={detalhes}
+                  className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 px-6 text-left transition duration-[120ms] hover:bg-s2"
+                >
+                  <span className="rotulo">Mais detalhes (rastreio, pedido, remetente, origem, observação)</span>
+                  <ChevronDown className={`size-5 shrink-0 transition duration-200 ${detalhes ? 'rotate-180' : ''}`} strokeWidth={1.75} />
+                </button>
+                {detalhes && (
+                  <div className="grid gap-4 p-6 pt-2 md:grid-cols-2">
+                    <label className="space-y-1">
+                      <span className="rotulo">Código de rastreio</span>
+                      <input value={f.rastreio} onChange={(e) => mudar('rastreio', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="Código de rastreio" />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="rotulo">Número do pedido</span>
+                      <input value={f.pedido} onChange={(e) => mudar('pedido', e.target.value)} className={`${campoPequeno} num`} aria-label="Número do pedido" />
+                    </label>
+                    <label className="space-y-1 md:col-span-2">
+                      <span className="rotulo">Remetente ou vendedor</span>
+                      <input value={f.vendedor} onChange={(e) => mudar('vendedor', e.target.value)} className={campoPequeno} aria-label="Remetente ou vendedor" />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="rotulo">Cidade de origem</span>
+                      <input value={f.origem_cidade} onChange={(e) => mudar('origem_cidade', e.target.value)} className={campoPequeno} aria-label="Cidade de origem" />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="rotulo">UF</span>
+                      <input value={f.origem_uf} maxLength={2} onChange={(e) => mudar('origem_uf', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="UF de origem" />
+                    </label>
+                    <label className="space-y-1 md:col-span-2">
+                      <span className="rotulo">Observação</span>
+                      <textarea value={f.observacao} onChange={(e) => mudar('observacao', e.target.value)} rows={2} className="w-full rounded-botao border border-line bg-s2 p-4 text-base" aria-label="Observação" />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </Aparecer>
+          </>
+        )}
+
+        <Aparecer i={3} className="lg:col-span-12">
+          <div className="sticky bottom-4 z-10 space-y-3 lg:static">
+            {bloqueio && <p className="m-0 text-sm font-medium text-warn">{bloqueio}</p>}
+            {erro && <Aviso>{erro}</Aviso>}
+            <div className="flex flex-wrap gap-3">
+              {passo > 0 && (
+                <Botao variante="secundario" onClick={() => setPasso(passo - 1)}>
+                  Voltar
+                </Botao>
+              )}
+              {ultimo ? (
+                <Botao
+                  grande
+                  className="flex-1"
+                  disabled={!empresa || !f.foto_pacote || salvando}
+                  onClick={() => empresa && f.foto_pacote && aoSalvar({ ...f, empresa_id: empresa.id, destinatario_id: destinatarioId || null })}
+                >
+                  {salvando ? 'Salvando…' : 'Salvar Encomenda'}
+                </Botao>
+              ) : (
+                <Botao grande className="flex-1" disabled={!!bloqueio} onClick={() => setPasso(passo + 1)}>
+                  Próximo
+                </Botao>
               )}
             </div>
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={2} className="lg:col-span-3">
-          <Tile rotulo="Andar e sala" className="h-full justify-end">
-            <p className="num m-0 text-[72px] leading-[72px] font-medium tracking-[-0.04em]" data-testid="apto">
-              {empresa ? (empresa.sala ?? empresa.andar ?? '—') : '—'}
-            </p>
-            {empresa?.andar && <p className="m-0 -mt-2 text-muted">{empresa.andar}º andar</p>}
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={3} className="lg:col-span-8">
-          <Tile rotulo="Onde foi comprado">
-            <SeletorMarca tipo="loja" valor={f.loja} aoMudar={(v) => mudar('loja', v)} rotulo="Loja" />
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={4} className="lg:col-span-8">
-          <Tile rotulo="Transportadora">
-            <SeletorMarca tipo="transportadora" valor={f.transportadora} aoMudar={(v) => mudar('transportadora', v)} rotulo="Transportadora" />
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={5} className="lg:col-span-6">
-          <Tile rotulo="Pacote">
-            <ChipsUnico<TipoPacote> valor={f.tipo} aoMudar={(v) => v && mudar('tipo', v)} opcoes={TIPOS} rotulo="Tipo de pacote" />
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-base font-medium">Volumes</span>
-              <Contador valor={f.volumes} aoMudar={(n) => mudar('volumes', n)} rotulo="Volumes" />
-            </div>
-            <div>
-              <p className="rotulo m-0 mb-2">Condição</p>
-              <ChipsUnico<Condicao> valor={f.condicao} aoMudar={(v) => v && mudar('condicao', v)} opcoes={CONDICOES} rotulo="Condição do pacote" />
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-botao border border-line bg-s2 px-4 text-sm font-medium transition duration-[120ms] hover:bg-s3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-accent">
-                <Camera className="size-5" strokeWidth={1.75} />
-                {f.foto_pacote ? 'Trocar foto do pacote' : 'Foto do pacote (opcional)'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  data-testid="foto-pacote"
-                  onChange={(e) => e.target.files?.[0] && mudar('foto_pacote', e.target.files[0])}
-                />
-              </label>
-              {previaPacote && <img src={previaPacote} alt="Foto do pacote" className="size-11 rounded-campo object-cover" />}
-            </div>
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={6} className="lg:col-span-6">
-          <Tile rotulo="Local de guarda">
-            <ChipsUnico<string>
-              valor={LOCAIS.includes(f.local_guarda) ? f.local_guarda : ''}
-              aoMudar={(v) => mudar('local_guarda', v)}
-              opcoes={LOCAIS.map((l) => ({ valor: l, rotulo: l }))}
-              rotulo="Local de guarda"
-              limpavel
-            />
-            <input
-              value={f.local_guarda}
-              onChange={(e) => mudar('local_guarda', e.target.value)}
-              placeholder="Outro local"
-              aria-label="Outro local de guarda"
-              className={campoPequeno}
-            />
-          </Tile>
-        </Aparecer>
-
-        <Aparecer i={7} className="lg:col-span-12">
-          <div className="tile overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setDetalhes((x) => !x)}
-              aria-expanded={detalhes}
-              className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 px-6 text-left transition duration-[120ms] hover:bg-s2"
-            >
-              <span className="rotulo">Mais detalhes (rastreio, pedido, remetente, origem, observação)</span>
-              <ChevronDown className={`size-5 shrink-0 transition duration-200 ${detalhes ? 'rotate-180' : ''}`} strokeWidth={1.75} />
-            </button>
-            {detalhes && (
-              <div className="grid gap-4 p-6 pt-2 md:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="rotulo">Código de rastreio</span>
-                  <input value={f.rastreio} onChange={(e) => mudar('rastreio', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="Código de rastreio" />
-                </label>
-                <label className="space-y-1">
-                  <span className="rotulo">Número do pedido</span>
-                  <input value={f.pedido} onChange={(e) => mudar('pedido', e.target.value)} className={`${campoPequeno} num`} aria-label="Número do pedido" />
-                </label>
-                <label className="space-y-1 md:col-span-2">
-                  <span className="rotulo">Remetente ou vendedor</span>
-                  <input value={f.vendedor} onChange={(e) => mudar('vendedor', e.target.value)} className={campoPequeno} aria-label="Remetente ou vendedor" />
-                </label>
-                <label className="space-y-1">
-                  <span className="rotulo">Cidade de origem</span>
-                  <input value={f.origem_cidade} onChange={(e) => mudar('origem_cidade', e.target.value)} className={campoPequeno} aria-label="Cidade de origem" />
-                </label>
-                <label className="space-y-1">
-                  <span className="rotulo">UF</span>
-                  <input value={f.origem_uf} maxLength={2} onChange={(e) => mudar('origem_uf', e.target.value.toUpperCase())} className={`${campoPequeno} num`} aria-label="UF de origem" />
-                </label>
-                <label className="space-y-1 md:col-span-2">
-                  <span className="rotulo">Observação</span>
-                  <textarea value={f.observacao} onChange={(e) => mudar('observacao', e.target.value)} rows={2} className="w-full rounded-botao border border-line bg-s2 p-4 text-base" aria-label="Observação" />
-                </label>
-              </div>
-            )}
-          </div>
-        </Aparecer>
-
-        <Aparecer i={8} className="lg:col-span-12">
-          <div className="sticky bottom-4 z-10 space-y-3 lg:static">
-            {erro && <Aviso>{erro}</Aviso>}
-            <Botao grande className="w-full" disabled={!empresa || salvando}
-              onClick={() => empresa && aoSalvar({ ...f, empresa_id: empresa.id, destinatario_id: destinatarioId || null })}>
-              {salvando ? 'Salvando…' : 'Salvar Encomenda'}
-            </Botao>
           </div>
         </Aparecer>
       </div>
