@@ -4,6 +4,7 @@ import { Toaster, toast } from 'sonner'
 import { CapturaFoto, LeitorCodigo } from './components/Camera'
 import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cinema'
 import { DetalheEncomenda } from './components/Detalhe'
+import { EncomendaRegistrada } from './components/Registrada'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Botao, Cabecalho, Pagina } from './components/ui'
@@ -14,7 +15,21 @@ import { dados, ErroEntrega, type Empresa, type Encomenda, type Perfil } from '.
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, normalizar, type Morador } from './lib/parser'
 
-type Tela = 'carregando' | 'login' | 'semacesso' | 'cadastro' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega' | 'detalhe'
+type Tela =
+  | 'carregando'
+  | 'login'
+  | 'semacesso'
+  | 'cadastro'
+  | 'turno'
+  | 'inicio'
+  | 'escolha'
+  | 'foto'
+  | 'codigo'
+  | 'lendo'
+  | 'conferir'
+  | 'registrada'
+  | 'entrega'
+  | 'detalhe'
 
 const CHAVE_TURNO = 'portaria.turno'
 function mensagemErroEntrega(e: unknown): string {
@@ -57,6 +72,7 @@ const ORDEM: Record<Tela, number> = {
   codigo: 3,
   lendo: 4,
   conferir: 5,
+  registrada: 6,
 }
 
 type Etapa = 'ocr' | 'busca'
@@ -148,6 +164,7 @@ export default function App() {
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
   const [detalhe, setDetalhe] = useState<Encomenda | null>(null)
+  const [registrada, setRegistrada] = useState<Encomenda | null>(null)
   const [enviando, setEnviando] = useState(false)
   const { reduzir } = useAnimacao()
   const reduzirRef = useRef(reduzir)
@@ -304,7 +321,8 @@ export default function App() {
       await carregar()
       setNovoId(salva.id)
       setRascunho(null)
-      ir('inicio')
+      setRegistrada(salva)
+      ir('registrada')
       toast.success(
         salva.status === 'avisada'
           ? 'Encomenda salva. Aviso ao morador enviado (simulado).'
@@ -405,6 +423,7 @@ export default function App() {
               setEntrega(e)
               ir('entrega')
             }}
+            empresas={empresas}
             aoAbrir={(e) => {
               setDetalhe(e)
               ir('detalhe')
@@ -434,6 +453,18 @@ export default function App() {
             aoVoltar={() => {
               setErro(null)
               setEntrega(null)
+              ir('inicio')
+            }}
+          />
+        ) : null
+      case 'registrada':
+        return registrada ? (
+          <EncomendaRegistrada
+            encomenda={registrada}
+            encomendas={encomendas ?? []}
+            empresa={empresas.find((x) => x.id === registrada.empresa_id)?.nome}
+            aoConcluir={() => {
+              setRegistrada(null)
               ir('inicio')
             }}
           />

@@ -9,6 +9,8 @@ export type Condicao = 'ok' | 'amassado' | 'aberto' | 'fragil' | 'refrigerado'
 export interface Encomenda {
   id: string
   morador_id: string | null
+  empresa_id?: string | null
+  destinatario_id?: string | null
   destinatario_nome: string
   apartamento: string
   bloco: string | null

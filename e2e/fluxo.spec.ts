@@ -60,6 +60,44 @@ async function proximo(page: Page) {
   await page.getByRole('button', { name: 'Próximo' }).click()
 }
 
+// Tela final do recebimento: oferece o aviso pelo WhatsApp e volta ao início em "Concluir".
+async function concluir(page: Page, mensagem?: string | RegExp) {
+  await expect(page.getByRole('heading', { name: 'Encomenda registrada' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Avisar o morador' })).toBeVisible()
+  if (mensagem) await expect(page.getByLabel('Mensagem do aviso')).toHaveValue(mensagem)
+  await page.getByRole('button', { name: 'Concluir' }).click()
+}
+
+async function receberPorCodigo(page: Page, codigo: string, destinatario: string) {
+  await page.getByRole('button', { name: 'Nova Encomenda' }).click()
+  await page.getByRole('button', { name: /Escanear código/ }).click()
+  await page.getByLabel('Código digitado').fill(codigo)
+  await page.getByRole('button', { name: 'Usar código' }).click()
+  await escolherEmpresa(page, destinatario)
+  await proximo(page)
+  await proximo(page)
+  await fotoDoPacote(page)
+  await proximo(page)
+  await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+}
+
+test('encomendas da mesma empresa ficam empilhadas e a mensagem conta quantas aguardam', async ({ page }) => {
+  await comecarTurno(page)
+  await receberPorCodigo(page, 'AA111111111BR', 'Maria Fernanda Oliveira')
+  await concluir(page, /^Olá, Maria Fernanda Oliveira! Chegou uma encomenda para Empresa de teste na portaria/)
+  await receberPorCodigo(page, 'BB222222222BR', 'Financeiro')
+  await concluir(page, /^Olá, Financeiro! Chegaram 2 encomendas para Empresa de teste na portaria/)
+
+  const pilha = page.getByRole('button', { name: '2 encomendas para Empresa de teste' })
+  await expect(pilha).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: /Entregar para/ })).toHaveCount(0)
+  await pilha.click()
+  await expect(pilha).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('button', { name: 'Entregar para Maria Fernanda Oliveira' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Entregar para Financeiro' })).toBeVisible()
+  await expect(page.getByTestId('contador-aguardando')).toHaveText('2')
+})
+
 test('recebe por foto, completa o pedido por passos e entrega com código e assinatura', async ({ page }) => {
   await comecarTurno(page)
   await expect(page.getByText('Nenhuma encomenda aguardando')).toBeVisible()
@@ -92,6 +130,7 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   // Passo 4: guarda e revisão
   await page.getByRole('radio', { name: 'Prateleira A' }).click()
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+  await concluir(page)
 
   const lista = page.getByTestId('lista')
   await expect(lista).toContainText('Maria Fernanda Oliveira')
@@ -142,6 +181,7 @@ test('seleção manual da empresa quando a etiqueta não identifica', async ({ p
   await fotoDoPacote(page)
   await proximo(page)
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+  await concluir(page)
   await expect(page.getByTestId('lista')).toContainText('Financeiro')
 })
 
@@ -157,6 +197,7 @@ test('código de retirada: errado é recusado com tentativas restantes', async (
   await fotoDoPacote(page)
   await proximo(page)
   await page.getByRole('button', { name: 'Salvar Encomenda' }).click()
+  await concluir(page)
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
 
   // A empresa de teste não tem contato cadastrado, então não há código gerado: o servidor recusa a conferência.

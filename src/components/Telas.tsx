@@ -1,5 +1,5 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
-import { Camera, Check, ChevronDown, ChevronRight, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
+import { Camera, Check, ChevronDown, ChevronRight, LogOut, Package, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gsap, useGSAP } from '../lib/gsap'
@@ -8,7 +8,8 @@ import type { Morador } from '../lib/parser'
 import { NumeroAnimado, TituloLetras } from './Cinema'
 import { AlternarTema } from './AlternarTema'
 import { ControleAnimacao } from './ControleAnimacao'
-import { CONDICOES, CartaoPedido, TIPOS } from './Pedido'
+import { empilhar, type Pilha } from '../lib/pilhas'
+import { CONDICOES, CartaoPedido, TIPOS, diasParado } from './Pedido'
 import { ChipsUnico, Contador, SeletorMarca, SeletorMorador } from './Selecao'
 import { Aparecer, Aviso, Botao, Cabecalho, EsqueletoLista, EstadoVazio, Marca, Pagina, Titulo } from './ui'
 
@@ -141,6 +142,109 @@ function agruparPorDia(itens: Encomenda[], campoData: 'recebido_em' | 'retirado_
   return grupos
 }
 
+const linhaBotao = 'flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6'
+
+function LinhaAguardando({ e, aoEntregar }: { e: Encomenda; aoEntregar: (e: Encomenda) => void }) {
+  return (
+    <button onClick={() => aoEntregar(e)} aria-label={`Entregar para ${e.destinatario_nome}`} data-linha className={linhaBotao}>
+      <div className="min-w-0 flex-1">
+        <CartaoPedido e={e} linha />
+      </div>
+      <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+        <time className="num text-base" dateTime={e.recebido_em}>
+          {hora.format(new Date(e.recebido_em))}
+        </time>
+        <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+function LinhaRetirada({ e, aoAbrir }: { e: Encomenda; aoAbrir: (e: Encomenda) => void }) {
+  return (
+    <button onClick={() => aoAbrir(e)} aria-label={`Ver detalhes de ${e.destinatario_nome}`} data-linha className={linhaBotao}>
+      <div className="min-w-0 flex-1">
+        <CartaoPedido e={e} linha />
+      </div>
+      <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+        <Check className="size-4 text-ok" strokeWidth={2} aria-hidden />
+        <span className="num text-base">{e.retirado_em ? hora.format(new Date(e.retirado_em)) : ''}</span>
+        <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
+      </span>
+    </button>
+  )
+}
+
+/** Várias encomendas para o mesmo destino: um cartão empilhado que abre e mostra cada uma. */
+function LinhaPilha({
+  pilha,
+  titulo,
+  aberta,
+  aoAlternar,
+  aoEntregar,
+}: {
+  pilha: Pilha
+  titulo: string
+  aberta: boolean
+  aoAlternar: () => void
+  aoEntregar: (e: Encomenda) => void
+}) {
+  const n = pilha.itens.length
+  const recente = pilha.itens[0]
+  const nomes = [...new Set(pilha.itens.map((e) => e.destinatario_nome))]
+  const dias = diasParado(pilha.itens[n - 1])
+  return (
+    <div>
+      <button
+        onClick={aoAlternar}
+        aria-expanded={aberta}
+        aria-label={`${n} encomendas para ${titulo}`}
+        data-linha
+        className="flex w-full cursor-pointer items-start gap-4 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
+      >
+        <span className="relative shrink-0" style={{ width: 62, height: 52 }} aria-hidden>
+          <span className="absolute top-2 left-4 size-11 rounded-campo border border-line bg-s3" />
+          <span className="absolute top-1 left-2 size-11 rounded-campo border border-line bg-s2" />
+          <span className="absolute top-0 left-0 grid size-11 place-items-center rounded-campo border border-line bg-s1 text-ink">
+            <Package className="size-5" strokeWidth={1.75} />
+          </span>
+          <span className="num absolute -top-2 left-7 grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs font-semibold text-on-accent">
+            {n}
+          </span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 truncate text-lg leading-snug font-semibold tracking-[-0.01em] md:text-xl">{titulo}</p>
+          <p className="m-0 mt-0.5 text-sm text-muted">
+            <span className="font-medium text-ink">{n} encomendas</span> aguardando · Apto{' '}
+            <span className="num font-medium text-ink">{recente.apartamento}</span>
+          </p>
+          <p className="m-0 mt-2 truncate text-sm text-muted">Para {nomes.join(', ')}</p>
+          {dias >= 3 && (
+            <span className="mt-3 inline-flex rounded-full bg-warn/15 px-2.5 py-0.5 text-xs font-medium text-warn">
+              A mais antiga está parada há {dias} dias
+            </span>
+          )}
+        </div>
+        <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+          <time className="num text-base" dateTime={recente.recebido_em}>
+            {hora.format(new Date(recente.recebido_em))}
+          </time>
+          <ChevronDown className={`size-5 transition duration-200 ${aberta ? 'rotate-180' : ''}`} strokeWidth={1.75} aria-hidden />
+        </span>
+      </button>
+      {aberta && (
+        <ul className="m-0 list-none divide-y divide-line border-t border-line p-0" aria-label={`Encomendas para ${titulo}`}>
+          {pilha.itens.map((e) => (
+            <li key={e.id} className="border-l-2 border-accent">
+              <LinhaAguardando e={e} aoEntregar={aoEntregar} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function contar(lista: Encomenda[]) {
   const agora = new Date()
   return {
@@ -158,6 +262,7 @@ export function Inicio({
   turno,
   aoNova,
   aoEntregar,
+  empresas,
   aoAbrir,
   aoTrocarTurno,
   aoSair,
@@ -170,6 +275,8 @@ export function Inicio({
   turno: string
   aoNova: () => void
   aoEntregar: (e: Encomenda) => void
+  /** Empresas do prédio, para dar nome às pilhas. */
+  empresas?: Empresa[]
   /** Abre o histórico de uma encomenda já retirada. */
   aoAbrir: (e: Encomenda) => void
   aoTrocarTurno?: () => void
@@ -185,7 +292,28 @@ export function Inicio({
       ? todas.filter((e) => e.status !== 'retirada')
       : todas.filter((e) => e.status === 'retirada').sort((a, b) => (b.retirado_em ?? '').localeCompare(a.retirado_em ?? ''))
   }, [encomendas, aba])
-  const grupos = useMemo(() => agruparPorDia(lista, aba === 'aguardando' ? 'recebido_em' : 'retirado_em'), [lista, aba])
+  // Na aba Aguardando, encomendas do mesmo destino viram uma pilha, que fica no dia da mais recente.
+  const pilhaDe = useMemo(() => {
+    const m = new Map<string, Pilha>()
+    if (aba === 'aguardando') for (const p of empilhar(lista)) m.set(p.itens[0].id, p)
+    return m
+  }, [lista, aba])
+  const grupos = useMemo(
+    () =>
+      aba === 'aguardando'
+        ? agruparPorDia([...pilhaDe.values()].map((p) => p.itens[0]), 'recebido_em')
+        : agruparPorDia(lista, 'retirado_em'),
+    [lista, aba, pilhaDe],
+  )
+  const [abertas, setAbertas] = useState<Set<string>>(() => new Set())
+  const alternarPilha = (chave: string) =>
+    setAbertas((s) => {
+      const n = new Set(s)
+      if (n.has(chave)) n.delete(chave)
+      else n.add(chave)
+      return n
+    })
+  const nomeEmpresa = (id?: string | null) => (id ? empresas?.find((x) => x.id === id)?.nome : undefined)
   const totalRetiradas = (encomendas?.length ?? 0) - aguardando
   const grade = useRef<HTMLDivElement>(null)
   const carregado = encomendas !== null
@@ -309,53 +437,35 @@ export function Inicio({
                   <section key={g.dia} aria-label={g.dia}>
                     <h3 className="rotulo flex items-center justify-between border-t border-line bg-s2 px-4 py-2 capitalize md:px-6">
                       <span>{g.dia}</span>
-                      <span className="num">{g.itens.length}</span>
+                      <span className="num">{g.itens.reduce((n, e) => n + (pilhaDe.get(e.id)?.itens.length ?? 1), 0)}</span>
                     </h3>
                     <ul className="m-0 list-none divide-y divide-line p-0">
-                      {g.itens.map((e) => (
-                        <motion.li
-                          key={e.id}
-                          initial={e.id === novoId ? { backgroundColor: 'var(--accent-soft)', y: -6, opacity: 0.4 } : false}
-                          animate={{ backgroundColor: 'rgba(0,0,0,0)', y: 0, opacity: 1 }}
-                          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-                          className="flex items-center"
-                        >
-                          {e.status !== 'retirada' ? (
-                            <button
-                              onClick={() => aoEntregar(e)}
-                              aria-label={`Entregar para ${e.destinatario_nome}`}
-                              data-linha
-                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <CartaoPedido e={e} linha />
-                              </div>
-                              <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
-                                <time className="num text-base" dateTime={e.recebido_em}>
-                                  {hora.format(new Date(e.recebido_em))}
-                                </time>
-                                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
-                              </span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => aoAbrir(e)}
-                              aria-label={`Ver detalhes de ${e.destinatario_nome}`}
-                              data-linha
-                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <CartaoPedido e={e} linha />
-                              </div>
-                              <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
-                                <Check className="size-4 text-ok" strokeWidth={2} aria-hidden />
-                                <span className="num text-base">{e.retirado_em ? hora.format(new Date(e.retirado_em)) : ''}</span>
-                                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
-                              </span>
-                            </button>
-                          )}
-                        </motion.li>
-                      ))}
+                      {g.itens.map((e) => {
+                        const pilha = pilhaDe.get(e.id)
+                        return (
+                          <motion.li
+                            key={e.id}
+                            initial={pilha?.itens.some((x) => x.id === novoId) || e.id === novoId ? { backgroundColor: 'var(--accent-soft)', y: -6, opacity: 0.4 } : false}
+                            animate={{ backgroundColor: 'rgba(0,0,0,0)', y: 0, opacity: 1 }}
+                            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                            className="block"
+                          >
+                            {pilha && pilha.itens.length > 1 ? (
+                              <LinhaPilha
+                                pilha={pilha}
+                                titulo={nomeEmpresa(e.empresa_id) ?? e.destinatario_nome}
+                                aberta={abertas.has(pilha.chave)}
+                                aoAlternar={() => alternarPilha(pilha.chave)}
+                                aoEntregar={aoEntregar}
+                              />
+                            ) : e.status !== 'retirada' ? (
+                              <LinhaAguardando e={e} aoEntregar={aoEntregar} />
+                            ) : (
+                              <LinhaRetirada e={e} aoAbrir={aoAbrir} />
+                            )}
+                          </motion.li>
+                        )
+                      })}
                     </ul>
                   </section>
                 ))}
