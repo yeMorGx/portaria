@@ -1,7 +1,7 @@
-import { Box, Mail, MapPin, Package, ShoppingBag, TriangleAlert } from 'lucide-react'
+import { Box, Check, Mail, MapPin, Package, ShoppingBag, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Condicao, Encomenda, TipoPacote } from '../lib/data'
-import { marcaPorNome } from '../lib/marcas'
+import { detectarMarca, marcaPorNome } from '../lib/marcas'
 import { LogoMarca } from './Logo'
 
 export const TIPOS: Array<{ valor: TipoPacote; rotulo: string; icone: ReactNode }> = [
@@ -30,8 +30,8 @@ export function diasParado(e: Encomenda): number {
 function Selo({ children, aviso }: { children: ReactNode; aviso?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        aviso ? 'bg-warn/15 text-warn' : 'bg-s2 text-muted'
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+        aviso ? 'border-transparent bg-warn/15 text-warn' : 'border-line bg-s2 text-muted'
       }`}
     >
       {children}
@@ -41,8 +41,9 @@ function Selo({ children, aviso }: { children: ReactNode; aviso?: boolean }) {
 
 /** Logo da loja sobreposto ao da transportadora: dá para saber de onde veio e quem trouxe de relance. */
 export function Logos({ e, tamanho = 40 }: { e: Pick<Encomenda, 'loja' | 'transportadora'>; tamanho?: number }) {
-  const loja = marcaPorNome(e.loja, 'loja')
-  const transp = marcaPorNome(e.transportadora, 'transportadora')
+  // Nome exato do catálogo ou, se foi digitado diferente ("sedex", "mercado livre br"), a marca reconhecida no texto.
+  const loja = marcaPorNome(e.loja, 'loja') ?? (e.loja ? detectarMarca(e.loja, 'loja') : null)
+  const transp = marcaPorNome(e.transportadora, 'transportadora') ?? (e.transportadora ? detectarMarca(e.transportadora, 'transportadora') : null)
   if (!e.loja && !e.transportadora) {
     return (
       <span className="grid shrink-0 place-items-center rounded-campo bg-accent-soft text-accent" style={{ width: tamanho, height: tamanho }} aria-hidden>
@@ -65,21 +66,29 @@ export function Logos({ e, tamanho = 40 }: { e: Pick<Encomenda, 'loja' | 'transp
 /** Resumo do pedido para bater o olho: logos, destinatário, apartamento, tipo, condição, local e tempo parado. */
 export function CartaoPedido({ e, destaque, linha }: { e: Encomenda; destaque?: boolean; linha?: boolean }) {
   const dias = diasParado(e)
+  const tamanho = destaque ? 56 : 44
   return (
     <div className={linha ? 'flex gap-4' : 'tile flex gap-4 p-4 md:p-6'}>
-      <Logos e={e} tamanho={destaque ? 56 : 44} />
-      <div className="min-w-0 flex-1 space-y-2">
-        <div>
-          <p className="m-0 text-xl leading-snug font-semibold tracking-[-0.01em]">{e.destinatario_nome}</p>
-          <p className="m-0 text-muted">
-            {e.bloco ? `Bloco ${e.bloco} · ` : ''}Apto <span className="num font-medium text-ink">{e.apartamento}</span>
-          </p>
-        </div>
-        <p className="m-0 text-sm text-muted">
+      {/* Coluna de largura fixa: o texto começa no mesmo ponto em todas as linhas, com um ou dois logos. */}
+      <div className="shrink-0" style={{ width: tamanho + 18 }}>
+        <Logos e={e} tamanho={tamanho} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-lg leading-snug font-semibold tracking-[-0.01em] md:text-xl">{e.destinatario_nome}</p>
+        <p className="m-0 mt-0.5 text-sm text-muted">
+          {e.bloco ? `Bloco ${e.bloco} · ` : ''}Apto <span className="num font-medium text-ink">{e.apartamento}</span>
+        </p>
+        <p className="m-0 mt-2 text-sm text-muted">
           {[e.loja && `Comprado em ${e.loja}`, e.transportadora && `Entrega ${e.transportadora}`].filter(Boolean).join(' · ') ||
             'Origem não informada'}
         </p>
-        <div className="flex flex-wrap gap-1.5">
+        {linha && e.status === 'retirada' && e.retirado_por_nome && (
+          <p className="m-0 mt-1 flex items-center gap-1.5 text-sm text-muted">
+            <Check className="size-4 shrink-0 text-ok" strokeWidth={2} />
+            Retirada por <span className="font-medium text-ink">{e.retirado_por_nome}</span>
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-1.5">
           <Selo>
             {rotuloTipo(e.tipo)}
             {e.volumes > 1 ? ` · ${e.volumes} volumes` : ''}

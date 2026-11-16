@@ -37,6 +37,7 @@ export interface Encomenda {
   retirado_por_nome: string | null
   entregue_por: string | null
   assinatura_path: string | null
+  assinatura_url?: string | null
   entrega_sem_codigo: boolean
   justificativa_sem_codigo: string | null
 }
@@ -281,15 +282,24 @@ function criarSupabase(client: SupabaseClient): DataSource {
         .limit(300)
       if (error) throw error
       const itens = data as Encomenda[]
-      const comFoto = itens.filter((i) => i.foto_path)
-      if (comFoto.length) {
-        const { data: urls } = await client.storage
-          .from('etiquetas')
-          .createSignedUrls(comFoto.map((i) => i.foto_path as string), 3600)
+      // Links temporários das imagens. Se um bucket recusar, a lista abre do mesmo jeito, só sem aquela imagem.
+      const assinar = async (
+        bucket: string,
+        caminho: 'foto_path' | 'foto_pacote_path' | 'assinatura_path',
+        destino: 'foto_url' | 'foto_pacote_url' | 'assinatura_url',
+      ) => {
+        const com = itens.filter((i) => i[caminho])
+        if (!com.length) return
+        const { data: urls } = await client.storage.from(bucket).createSignedUrls(com.map((i) => i[caminho] as string), 3600)
         urls?.forEach((u, idx) => {
-          comFoto[idx].foto_url = u.signedUrl
+          if (u.signedUrl) com[idx][destino] = u.signedUrl
         })
       }
+      await Promise.all([
+        assinar('etiquetas', 'foto_path', 'foto_url').catch(() => undefined),
+        assinar('pacotes', 'foto_pacote_path', 'foto_pacote_url').catch(() => undefined),
+        assinar('assinaturas', 'assinatura_path', 'assinatura_url').catch(() => undefined),
+      ])
       return itens
     },
     async salvarEncomenda(e) {
@@ -440,6 +450,7 @@ function criarDemo(): DataSource {
         entregue_por: c.entreguePor,
         entrega_sem_codigo: c.semCodigo,
         justificativa_sem_codigo: c.semCodigo ? c.justificativa : null,
+        assinatura_url: URL.createObjectURL(c.assinatura),
       })
       return alvo
     },

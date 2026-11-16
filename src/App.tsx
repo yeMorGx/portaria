@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Toaster, toast } from 'sonner'
 import { CapturaFoto, LeitorCodigo } from './components/Camera'
 import { Abertura, Celebracao, Cortina, type CortinaApi } from './components/Cinema'
+import { DetalheEncomenda } from './components/Detalhe'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Botao, Cabecalho, Pagina } from './components/ui'
@@ -13,7 +14,7 @@ import { dados, ErroEntrega, type Empresa, type Encomenda, type Perfil } from '.
 import { lerTexto, reduzirImagem } from './lib/ocr'
 import { extrairDados, normalizar, type Morador } from './lib/parser'
 
-type Tela = 'carregando' | 'login' | 'semacesso' | 'cadastro' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega'
+type Tela = 'carregando' | 'login' | 'semacesso' | 'cadastro' | 'turno' | 'inicio' | 'escolha' | 'foto' | 'codigo' | 'lendo' | 'conferir' | 'entrega' | 'detalhe'
 
 const CHAVE_TURNO = 'portaria.turno'
 function mensagemErroEntrega(e: unknown): string {
@@ -51,6 +52,7 @@ const ORDEM: Record<Tela, number> = {
   inicio: 1,
   escolha: 2,
   entrega: 2,
+  detalhe: 2,
   foto: 3,
   codigo: 3,
   lendo: 4,
@@ -145,6 +147,7 @@ export default function App() {
   const [textoLido, setTextoLido] = useState('')
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
+  const [detalhe, setDetalhe] = useState<Encomenda | null>(null)
   const [enviando, setEnviando] = useState(false)
   const { reduzir } = useAnimacao()
   const reduzirRef = useRef(reduzir)
@@ -402,6 +405,10 @@ export default function App() {
               setEntrega(e)
               ir('entrega')
             }}
+            aoAbrir={(e) => {
+              setDetalhe(e)
+              ir('detalhe')
+            }}
             aoTrocarTurno={perfil ? undefined : () => ir('turno')}
             aoCadastro={perfil && (perfil.papel === 'sindico' || perfil.papel === 'administradora') ? () => ir('cadastro') : undefined}
             aoRecarregar={carregar}
@@ -427,6 +434,16 @@ export default function App() {
             aoVoltar={() => {
               setErro(null)
               setEntrega(null)
+              ir('inicio')
+            }}
+          />
+        ) : null
+      case 'detalhe':
+        return detalhe ? (
+          <DetalheEncomenda
+            e={detalhe}
+            aoVoltar={() => {
+              setDetalhe(null)
               ir('inicio')
             }}
           />

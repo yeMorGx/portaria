@@ -1,5 +1,5 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
-import { Camera, Check, ChevronDown, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
+import { Camera, Check, ChevronDown, ChevronRight, LogOut, Plus, QrCode, ScanLine, TriangleAlert, UserRound } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gsap, useGSAP } from '../lib/gsap'
@@ -158,6 +158,7 @@ export function Inicio({
   turno,
   aoNova,
   aoEntregar,
+  aoAbrir,
   aoTrocarTurno,
   aoSair,
   aoRecarregar,
@@ -169,6 +170,8 @@ export function Inicio({
   turno: string
   aoNova: () => void
   aoEntregar: (e: Encomenda) => void
+  /** Abre o histórico de uma encomenda já retirada. */
+  aoAbrir: (e: Encomenda) => void
   aoTrocarTurno?: () => void
   aoSair?: () => void
   aoCadastro?: () => void
@@ -327,20 +330,29 @@ export function Inicio({
                               <div className="min-w-0 flex-1">
                                 <CartaoPedido e={e} linha />
                               </div>
-                              <time className="num shrink-0 self-start pt-1 text-base text-muted" dateTime={e.recebido_em}>
-                                {hora.format(new Date(e.recebido_em))}
-                              </time>
+                              <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+                                <time className="num text-base" dateTime={e.recebido_em}>
+                                  {hora.format(new Date(e.recebido_em))}
+                                </time>
+                                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
+                              </span>
                             </button>
                           ) : (
-                            <div data-linha className="flex w-full items-center gap-3 px-4 py-4 md:px-6">
+                            <button
+                              onClick={() => aoAbrir(e)}
+                              aria-label={`Ver detalhes de ${e.destinatario_nome}`}
+                              data-linha
+                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition duration-[120ms] hover:bg-s2 md:px-6"
+                            >
                               <div className="min-w-0 flex-1">
                                 <CartaoPedido e={e} linha />
                               </div>
-                              <p className="num m-0 shrink-0 self-start pt-1 text-right text-sm text-muted">
-                                <Check className="mr-1 inline size-4 text-ok" strokeWidth={2} />
-                                {e.retirado_em ? hora.format(new Date(e.retirado_em)) : ''}
-                              </p>
-                            </div>
+                              <span className="flex shrink-0 items-center gap-1 self-start pt-1 text-muted">
+                                <Check className="size-4 text-ok" strokeWidth={2} aria-hidden />
+                                <span className="num text-base">{e.retirado_em ? hora.format(new Date(e.retirado_em)) : ''}</span>
+                                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden />
+                              </span>
+                            </button>
                           )}
                         </motion.li>
                       ))}

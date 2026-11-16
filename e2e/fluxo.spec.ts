@@ -113,6 +113,18 @@ test('recebe por foto, completa o pedido por passos e entrega com código e assi
   await expect(page.getByTestId('contador-aguardando')).toHaveText('0')
   await page.getByRole('radio', { name: /Retiradas/ }).click()
   await expect(page.getByTestId('lista')).toContainText('Maria Fernanda Oliveira')
+
+  // A encomenda retirada abre o histórico: quem retirou, como foi entregue e a assinatura.
+  await page.getByRole('button', { name: 'Ver detalhes de Maria Fernanda Oliveira' }).click()
+  await expect(page.getByRole('heading', { name: 'Encomenda retirada' })).toBeVisible()
+  const linhaDoTempo = page.getByRole('region', { name: 'Linha do tempo' })
+  await expect(linhaDoTempo).toContainText('Recebida na portaria')
+  await expect(linhaDoTempo).toContainText('Entregue por Carlos')
+  await expect(linhaDoTempo).toContainText('Sem código de retirada')
+  await expect(linhaDoTempo).toContainText('Entregue na recepção da empresa')
+  await expect(page.getByRole('img', { name: 'Assinatura' })).toBeVisible()
+  await page.getByRole('button', { name: 'Voltar' }).click()
+  await expect(page.getByRole('heading', { name: 'Encomendas' })).toBeVisible()
 })
 
 test('seleção manual da empresa quando a etiqueta não identifica', async ({ page }) => {
