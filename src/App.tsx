@@ -8,7 +8,7 @@ import { AvisoWhatsapp } from './components/Registrada'
 import { Entrega } from './components/Entrega'
 import { Conferencia, Escolha, Inicio, Login, Turno, type Rascunho } from './components/Telas'
 import { Botao, Cabecalho, Pagina } from './components/ui'
-import { Cadastro } from './components/Cadastro'
+import { CriarSenha, Gestao } from './components/Gestao'
 import { useAnimacao } from './lib/animacao'
 import { gsap, useGSAP } from './lib/gsap'
 import { dados, ErroEntrega, type Empresa, type Encomenda, type Perfil } from './lib/data'
@@ -19,7 +19,8 @@ type Tela =
   | 'carregando'
   | 'login'
   | 'semacesso'
-  | 'cadastro'
+  | 'gestao'
+  | 'senha'
   | 'turno'
   | 'inicio'
   | 'escolha'
@@ -62,7 +63,8 @@ const ORDEM: Record<Tela, number> = {
   carregando: -1,
   login: 0,
   semacesso: 0,
-  cadastro: 0,
+  gestao: 2,
+  senha: 0,
   turno: 0,
   inicio: 1,
   escolha: 2,
@@ -164,7 +166,9 @@ export default function App() {
   const [turno, setTurno] = useState(lerTurno)
   const [entrega, setEntrega] = useState<Encomenda | null>(null)
   const [detalhe, setDetalhe] = useState<Encomenda | null>(null)
-  const [aviso, setAviso] = useState<{ referencia: Encomenda; nova: boolean } | null>(null)
+  const [aviso, setAviso] = useState<{ referencia: Encomenda; nova: boolean; origem: Tela } | null>(null)
+  // Entrou pelo link de convite: cria a senha uma vez, antes de usar o sistema.
+  const pedirSenha = useRef(dados.chegouPorConvite)
   // "Outra encomenda para…": a próxima conferência já vem com a mesma empresa e destinatário.
   const [preset, setPreset] = useState<{ empresa_id: string; destinatario_id: string | null } | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -216,7 +220,7 @@ export default function App() {
         setPerfil(p)
         setTurno(p.nome)
         carregar()
-        ir('inicio', { cortina: true })
+        ir(pedirSenha.current ? 'senha' : 'inicio', { cortina: true })
         return
       }
       carregar()
@@ -324,7 +328,7 @@ export default function App() {
       setNovoId(salva.id)
       setRascunho(null)
       setPreset(null)
-      setAviso({ referencia: salva, nova: true })
+      setAviso({ referencia: salva, nova: true, origem: 'inicio' })
       ir('registrada')
       toast.success('Encomenda salva.')
     } catch {
@@ -374,8 +378,31 @@ export default function App() {
             aoEntrar={() => void entrarNoApp()}
           />
         )
-      case 'cadastro':
-        return perfil ? <Cadastro predioId={perfil.predio_id} aoVoltar={() => ir('inicio')} /> : null
+      case 'gestao':
+        return (
+          <Gestao
+            predioId={perfil?.predio_id ?? '11111111-1111-1111-1111-111111111111'}
+            encomendas={encomendas ?? []}
+            aoVoltar={() => ir('inicio')}
+            aoAvisar={(e) => {
+              setPreset(null)
+              setAviso({ referencia: e, nova: false, origem: 'gestao' })
+              ir('registrada')
+            }}
+            aoEmpresasMudaram={() => void carregar()}
+          />
+        )
+      case 'senha':
+        return (
+          <CriarSenha
+            nome={perfil?.nome ?? ''}
+            aoConcluir={() => {
+              pedirSenha.current = false
+              toast.success('Senha criada. Bem-vindo!')
+              ir('inicio', { cortina: true })
+            }}
+          />
+        )
       case 'semacesso':
         return (
           <Pagina className="flex min-h-screen flex-col justify-center md:max-w-lg">
@@ -425,7 +452,7 @@ export default function App() {
             empresas={empresas}
             aoAvisar={(e) => {
               setPreset(null)
-              setAviso({ referencia: e, nova: false })
+              setAviso({ referencia: e, nova: false, origem: 'inicio' })
               ir('registrada')
             }}
             aoAbrir={(e) => {
@@ -433,7 +460,7 @@ export default function App() {
               ir('detalhe')
             }}
             aoTrocarTurno={perfil ? undefined : () => ir('turno')}
-            aoCadastro={perfil && (perfil.papel === 'sindico' || perfil.papel === 'administradora') ? () => ir('cadastro') : undefined}
+            aoCadastro={(perfil && (perfil.papel === 'sindico' || perfil.papel === 'administradora')) || dados.modo === 'demo' ? () => ir('gestao') : undefined}
             aoRecarregar={carregar}
             aoSair={
               dados.precisaLogin
@@ -479,10 +506,11 @@ export default function App() {
                 : undefined
             }
             aoConcluir={() => {
+              const volta = aviso.origem
               setPreset(null)
               setAviso(null)
               void carregar()
-              ir('inicio')
+              ir(volta)
             }}
           />
         ) : null

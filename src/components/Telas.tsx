@@ -392,7 +392,7 @@ export function Inicio({
           <AlternarTema />
           {aoCadastro && (
             <Botao variante="fantasma" onClick={aoCadastro} className="!min-h-11 !gap-2 !px-3">
-              Cadastro
+              Gestão
             </Botao>
           )}
           {aoTrocarTurno && (

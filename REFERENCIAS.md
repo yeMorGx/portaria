@@ -1,5 +1,31 @@
 # REFERENCIAS.md
 
+## Área de gestão e dashboard (2026-11-16)
+
+Status: APROVADO em 2026-11-16 (as 6 referências).
+
+Pesquisa feita em 2026-11-16. Os prêmios foram conferidos no título de cada página do Awwwards ("Awwwards SOTD"; descartei os que diziam "Nominee"). Os três sites novos do Awwwards foram abertos pelo link do **Visit Site** e analisados com `scripts/analisar-site.mjs` (rodado com o Edge, porque o Chromium do Playwright não está instalado aqui; capturas em `.design/refs/<nome>/`). Os shots do Dribbble foram abertos e vistos no navegador.
+
+| # | Nome | URL | Origem | Prêmio/selo | O que aproveitar | O que evitar | Tecnologias |
+|---|---|---|---|---|---|---|---|
+| 1 | Creative Reference Library | crl-2026.webflow.io (awwwards.com/sites/creative-reference-library) | Awwwards vencedor | SOTD | Índice editorial com contagens entre parênteses em texto pequeno ("(9) Videos"); números e anos gigantes como protagonistas da página; texto que se monta letra por letra ao entrar. Base para listas de gestão em "índice" e para o número herói do dashboard. | Fundo cinza chapado e blocos pretos gigantes cobrindo texto; legibilidade baixa no texto corrido. | Webflow, jQuery, script próprio |
+| 2 | DeepBook | deepbook-v2-wip.webflow.io (awwwards.com/sites/deepbook) | Awwwards vencedor | SOTD | Bento com marcas "+" nos cantos, grade de pontos de fundo, indicador de paginação em pílula, um bloco de cor sólida contra outros neutros (pesos diferentes no bento). | Faixa de anúncio no topo e azul saturado em blocos grandes (no nosso caso o destaque fica em pontos pequenos). | GSAP (SplitText, DrawSVG, MorphSVG, Draggable, Inertia, CustomEase), Lenis, Webflow |
+| 3 | Cyera AI Guardian | secure-the-unknown.cyera.com (awwwards.com/sites/cyera-ai-guardian) | Awwwards vencedor | SOTD | Título enorme e curto com uma frase de ação; botão escuro com seta em quadrado claro (ação clara e única); poucos elementos na primeira dobra. | Ilustração 3D roxa e cena de vitrine: nada disso cabe num painel de trabalho. | Theatre.js, script próprio |
+| 4 | Grids | grids03.obys.agency (awwwards.com/sites/grids-1) | Awwwards vencedor (já aprovado em 2026-11-09) | SOTD | Linhas finas de 1 px entre itens e colunas, ritmo de lista; boa base para a tabela de usuários e de empresas. | Rolagem longa de vitrine. | (análise de 2026-11-09) |
+| 5 | Event Engagement Analytics Dashboard | dribbble.com/shots/27688795 | Dribbble | — | Faixa de indicadores em que cada cartão tem um mini gráfico de tipo diferente (área, linha, barras, pontos); gráfico grande com marcador e etiqueta no ponto em foco; datas do período no topo. | Várias cores de destaque ao mesmo tempo (verde, amarelo, branco) e glow; no nosso, um destaque só. | (imagem) |
+| 6 | Minimal Users Management Dashboard | dribbble.com/shots/26341830 | Dribbble | — | Abas no topo (todos, papéis, convites), ação principal "adicionar" no canto, busca e filtro junto da tabela, status em pílula, último acesso. | Ícone de excluir vermelho sempre visível em cada linha (ação perigosa sem confirmação) e tabela que não cabe no celular. | (imagem) |
+
+## Observações de animação e transição
+- **CRL:** texto que embaralha e se monta ao entrar; serve para o número herói contar até o valor.
+- **DeepBook:** desenho de linhas (DrawSVG) e entrada por blocos; serve para as barras e linhas dos gráficos se desenharem.
+- **Cyera:** cena coreografada com Theatre.js; só aproveitamos a ideia de uma ação clara, não a cena.
+- **Dashboard (Dribbble):** marcador que acompanha o ponto do gráfico; vira a interação de passar o dedo ou o mouse nas barras.
+- Tudo com `prefers-reduced-motion`: sem contagem e sem desenho, só o estado final.
+
+---
+
+## Fluxo do porteiro (2026-11-09)
+
 Status: APROVADO em 2026-11-09 (as 6 referências: 4 do Awwwards e Intercom e Linear de interface de produto).
 
 Pesquisa feita em 2026-11-09. Cada prêmio foi conferido na página do Awwwards e o site real foi aberto pelo **Visit Site**.

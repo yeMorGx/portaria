@@ -1,5 +1,69 @@
 # RELATORIO.md
 
+## Área de gestão e dashboard (2026-11-16)
+
+Redesign parcial seguindo a skill `ui-ux-design`: Portão 0 (parte nova no app), Portão 1 (contexto; variante "mais ousado"), Portão 2 (6 referências: 4 vencedores SOTD do Awwwards e 2 shots do Dribbble) e Portão 3 (plano) aprovados em 2026-11-16.
+Capturas das 2 rodadas em `.design/screens/gestao/r1` e `r2` (1440 e 390 px, claro e escuro; 24 por rodada). Essa pasta não vai para o Git.
+
+### O que foi feito
+- **Entrada:** o botão "Cadastro" do início virou **"Gestão"** (síndico e administradora; também no modo demonstração).
+- **Abas** Visão geral · Empresas · Usuários, com indicador que desliza; no celular ocupam a largura toda e escondem os ícones.
+- **Visão geral:** número herói que conta até o valor (aguardando agora), barra de idade (até 1 dia, 1 a 3, mais de 3 no destaque), "Paradas há 3 dias ou mais" com o botão do WhatsApp, 4 indicadores com mini gráficos de tipos diferentes (área, barras, linha, pontos) e variação contra o período anterior, recebidas por dia (hoje no destaque, tooltip com recebidas e entregues), ranking por empresa e índice de lojas e transportadoras no estilo "(n) Nome". Período Hoje · 7 dias · 30 dias.
+- **Empresas:** lista em índice com busca, situação e quantas aguardam; painel lateral (de baixo no celular) com o formulário e os destinatários, agora com edição do WhatsApp de quem já está cadastrado.
+- **Usuários:** lista com papel, último acesso e situação, busca e filtro por papel; **convite** que cria a conta e devolve um link de acesso mascarado (mostrar, copiar, mandar pelo WhatsApp); troca de papel e desativação com confirmação; ninguém se desativa nem o prédio fica sem gestor.
+- **Crie sua senha:** quem abre o link de convite cria a própria senha antes de usar o sistema.
+- **Servidor:** migração 009 (`listar_usuarios_predio`, `atualizar_usuario`) e Edge Function `convidar-usuario` (a chave de administrador fica só no servidor).
+
+### Componentes e origem
+| Componente | Origem |
+|---|---|
+| Abas | Radix Tabs (instalado) + Motion `layoutId` |
+| Painel lateral e confirmação | Radix Dialog (instalado), animação por CSS com `data-state` |
+| Período, papel e filtro | Radix ToggleGroup (já usado) |
+| Gráficos | SVG e HTML próprios (`Graficos.tsx`), seguindo a skill de visualização de dados |
+| Número que conta | `NumeroAnimado` (já existia, GSAP) |
+| Lista em índice | própria, a partir de Grids e Creative Reference Library |
+Bibliotecas de componentes: Radix (+ cmdk que já existia). Nenhuma biblioteca de gráfico.
+
+### Cores dos gráficos
+Forma de **ênfase** (skill de visualização): o dado que importa no destaque `#6366F1`, o contexto em cinza (`--chart-muted`: `#94A3B8` claro, `#71717A` escuro). O validador reprovou um par categórico cinza + destaque (cinza tem croma baixo), então o gráfico por dia mostra uma série só (recebidas) e as entregues ficam no tooltip e no indicador próprio. Contraste do cinza claro é 2,5:1: compensado por valores escritos, tooltip e tabela para leitor de tela.
+
+### Rodadas de verificação
+**Rodada 1** (`r1`): defeitos encontrados e corrigidos:
+1. Indicadores: "sem base para comparar" quebrava em 3 linhas ao lado do mini gráfico → mini gráfico subiu para o lado do rótulo.
+2. Gráfico por dia: o rótulo "3" do eixo encostava no título → respiro no topo.
+3. Abas no celular cortavam "Usuários" → largura total, sem ícones no celular.
+4. Painel da empresa: formulário de novo destinatário espremido e "Adicionar" saindo do painel → grade de 2 colunas.
+5. Lista de empresas: coluna "Local" quebrava → coluna mais larga.
+6. Iniciais "V(" em "Você (demonstração)" → só palavras que começam com letra.
+**Rodada 2** (`r2`): os 6 conferidos como corrigidos nas 4 combinações (claro/escuro, 1440/390).
+
+### Testes
+- Unitários: 37 (6 novos dos cálculos do dashboard).
+- End-to-end: 8, incluindo `gestao.spec.ts` (visão geral, nova empresa com destinatário e WhatsApp, convite com link mascarado, troca de papel, desativação, própria conta protegida).
+- Migração 009 ensaiada no banco com reversão: lista com e-mails, recusa de desativar a si mesmo e de papel inválido; nada gravado.
+
+### Checklist de leis de UX
+| Lei | Resultado |
+|---|---|
+| Hick | Passou: uma ação principal por aba (Nova empresa, Convidar usuário; na visão geral, o WhatsApp das paradas) |
+| Fitts | Passou: alvos de 44 px ou mais; ação principal no canto superior da lista que ela afeta |
+| Jakob | Passou: abas, lista com cabeçalho, painel lateral e confirmação no padrão conhecido |
+| Proximidade | Passou: período ao lado do título que ele muda; busca e filtro colados na lista |
+| Von Restorff | Passou: só o dado que importa no destaque em cada gráfico |
+| Carga cognitiva | Passou: herói responde "o que precisa de atenção agora" antes do resto |
+| Contraste | Passou em texto; cinza de contexto dos gráficos compensado com valores escritos e tabela |
+
+### Não verificado (honestidade)
+- **Convite de verdade:** a Edge Function não foi publicada nem testada contra o Supabase real; os testes rodaram no modo demonstração. O link volta para o app só depois que o endereço do app estiver liberado como URL de retorno na autenticação do Supabase.
+- Leitor de tela e navegação só por teclado nas abas e nos painéis: não testados de ponta a ponta.
+- Celular real, Safari e Firefox: não testados.
+- Dashboard calcula no navegador a partir de até 5.000 encomendas do período; para prédios muito grandes, o cálculo deveria ir para o banco.
+
+---
+
+## Fluxo do porteiro (2026-11-09)
+
 Redesign completo do app da portaria, seguindo a skill `ui-ux-design` (Portões 0 a 3 aprovados em 2026-11-09).
 Capturas das 3 rodadas em `.design/screens/r1`, `r2` e `r3` (390, 768 e 1440 px, claro e escuro). Essa pasta não vai para o Git.
 

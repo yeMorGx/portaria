@@ -130,6 +130,23 @@ export interface Destinatario {
   telefone?: string | null
 }
 
+export type Papel = Perfil['papel']
+
+/** Conta do prédio vista pela gestão (síndico e administradora). */
+export interface UsuarioGestao {
+  id: string
+  nome: string
+  papel: Papel
+  ativo: boolean
+  email: string | null
+  ultimo_acesso: string | null
+  criado_em: string
+  /** É a conta de quem está usando agora. */
+  sou_eu: boolean
+}
+
+export type MotivoUsuario = 'sem_permissao' | 'nao_encontrado' | 'papel_invalido' | 'proprio_usuario' | 'ultimo_gestor' | 'erro'
+
 export type EmpresaEntrada = Omit<Empresa, 'id' | 'predio_id'> & { id?: string }
 export type DestinatarioEntrada = Omit<Destinatario, 'id' | 'empresa_id'> & { id?: string }
 
@@ -148,6 +165,17 @@ export interface DataSource {
   listarDestinatarios(empresaId: string): Promise<Destinatario[]>
   salvarDestinatario(d: DestinatarioEntrada, empresaId: string): Promise<Destinatario>
   listarEncomendas(): Promise<Encomenda[]>
+  /** Para o dashboard: tudo recebido desde a data, mais o que ainda aguarda retirada (sem limite de 300). */
+  listarEncomendasDesde(desdeIso: string): Promise<Encomenda[]>
+  /** Gestão de usuários (síndico e administradora). */
+  listarUsuarios(): Promise<UsuarioGestao[]>
+  atualizarUsuario(id: string, mudanca: { papel?: Papel; ativo?: boolean }): Promise<{ ok: boolean; motivo?: MotivoUsuario }>
+  /** Cria ou reaproveita a conta, vincula ao prédio e devolve o link de acesso para mandar à pessoa. */
+  convidarUsuario(c: { nome: string; email: string; papel: Papel }): Promise<string>
+  /** Quem entrou pelo link de convite cria a própria senha. */
+  definirSenha(senha: string): Promise<void>
+  /** O app abriu pelo link de convite (ou de recuperação): pedir para criar a senha. */
+  readonly chegouPorConvite: boolean
   salvarEncomenda(e: NovaEncomenda): Promise<Encomenda>
   /** Gera um código novo e avisa o morador (modo simulado). Devolve se houve aviso. */
   reenviarCodigo(e: Encomenda): Promise<{ avisado: boolean }>
@@ -160,6 +188,9 @@ export interface DataSource {
   lembrarTelefone(alvo: { destinatarioId?: string | null; empresaId?: string | null }, telefone: string): Promise<boolean>
   confirmarEntrega(c: ConfirmarEntrega): Promise<Encomenda>
 }
+
+// Lido antes de o Supabase processar e limpar o endereço: o link de convite (ou de recuperação) traz type=... no hash.
+const veioDeConvite = typeof window !== 'undefined' && /[#&]type=(invite|recovery)\b/.test(window.location.hash)
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -262,6 +293,44 @@ function criarSupabase(client: SupabaseClient): DataSource {
       const { data, error } = await q
       if (error) throw error
       return data as Empresa
+    },
+    chegouPorConvite: veioDeConvite,
+    async listarEncomendasDesde(desdeIso) {
+      const { data, error } = await client
+        .from('encomendas')
+        .select('*')
+        .or(`recebido_em.gte.${desdeIso},status.neq.retirada`)
+        .order('recebido_em', { ascending: false })
+        .limit(5000)
+      if (error) throw error
+      return data as Encomenda[]
+    },
+    async listarUsuarios() {
+      const { data, error } = await client.rpc('listar_usuarios_predio')
+      if (error) throw error
+      return data as UsuarioGestao[]
+    },
+    async atualizarUsuario(id, mudanca) {
+      const { data, error } = await client.rpc('atualizar_usuario', {
+        p_id: id,
+        p_papel: mudanca.papel ?? null,
+        p_ativo: mudanca.ativo ?? null,
+      })
+      if (error) return { ok: false, motivo: 'erro' }
+      return data as { ok: boolean; motivo?: MotivoUsuario }
+    },
+    async convidarUsuario(c) {
+      const { data, error } = await client.functions.invoke('convidar-usuario', {
+        body: { ...c, redirectTo: window.location.origin },
+      })
+      if (error) throw error
+      const r = data as { ok: boolean; link?: string; motivo?: string }
+      if (!r.ok || !r.link) throw new Error(r.motivo ?? 'erro')
+      return r.link
+    },
+    async definirSenha(senha) {
+      const { error } = await client.auth.updateUser({ password: senha })
+      if (error) throw error
     },
     async listarDestinatarios(empresaId) {
       const { data, error } = await client.from('destinatarios').select('*').eq('empresa_id', empresaId).order('nome')
@@ -387,6 +456,11 @@ function criarDemo(): DataSource {
     { id: '5', nome: 'Beatriz Lima Costa', apartamento: '505', bloco: 'B', telefone: '+5511999990505', consentimento_em: agora },
   ]
   const encomendas: Encomenda[] = []
+  const usuariosDemo: UsuarioGestao[] = [
+    { id: 'u1', nome: 'Você (demonstração)', papel: 'administradora', ativo: true, email: 'gestao@exemplo.com', ultimo_acesso: agora, criado_em: agora, sou_eu: true },
+    { id: 'u2', nome: 'Carlos Souza', papel: 'porteiro', ativo: true, email: 'carlos@exemplo.com', ultimo_acesso: agora, criado_em: agora, sou_eu: false },
+    { id: 'u3', nome: 'Ana Ribeiro', papel: 'sindico', ativo: true, email: 'ana@exemplo.com', ultimo_acesso: null, criado_em: agora, sou_eu: false },
+  ]
   // Mesma regra do servidor: hash do código, 5 tentativas e bloqueio.
   const codigos = new Map<string, { hash: string; tentativas: number }>()
 
@@ -421,6 +495,39 @@ function criarDemo(): DataSource {
       empresasDemo.push(nova)
       return nova
     },
+    chegouPorConvite: false,
+    listarEncomendasDesde: async (desdeIso) =>
+      encomendas.filter((e) => e.recebido_em >= desdeIso || e.status !== 'retirada'),
+    listarUsuarios: async () => [...usuariosDemo],
+    async atualizarUsuario(id, mudanca) {
+      const u = usuariosDemo.find((x) => x.id === id)
+      if (!u) return { ok: false, motivo: 'nao_encontrado' }
+      const papel = mudanca.papel ?? u.papel
+      const ativo = mudanca.ativo ?? u.ativo
+      const gestor = (p: Papel) => p === 'sindico' || p === 'administradora'
+      if (u.sou_eu && (!ativo || !gestor(papel))) return { ok: false, motivo: 'proprio_usuario' }
+      const outros = usuariosDemo.filter((x) => x.id !== id && x.ativo && gestor(x.papel)).length
+      if (outros === 0 && (!ativo || !gestor(papel))) return { ok: false, motivo: 'ultimo_gestor' }
+      Object.assign(u, { papel, ativo })
+      return { ok: true }
+    },
+    async convidarUsuario(c) {
+      const existente = usuariosDemo.find((x) => x.email === c.email.toLowerCase())
+      if (existente) Object.assign(existente, { nome: c.nome, papel: c.papel, ativo: true })
+      else
+        usuariosDemo.push({
+          id: crypto.randomUUID(),
+          nome: c.nome,
+          papel: c.papel,
+          ativo: true,
+          email: c.email.toLowerCase(),
+          ultimo_acesso: null,
+          criado_em: new Date().toISOString(),
+          sou_eu: false,
+        })
+      return `https://portaria.exemplo/convite#token=${crypto.randomUUID().replace(/-/g, '')}`
+    },
+    definirSenha: async () => {},
     listarDestinatarios: async (empresaId) => destinatariosDemo.filter((x) => x.empresa_id === empresaId),
     async salvarDestinatario(dest, empresaId) {
       if (dest.id) {

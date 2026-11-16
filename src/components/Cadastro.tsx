@@ -15,7 +15,7 @@ function Rotulo({ texto, children }: { texto: string; children: ReactNode }) {
   )
 }
 
-const VAZIA: EmpresaEntrada = {
+export const EMPRESA_VAZIA: EmpresaEntrada = {
   nome: '',
   cnpj: null,
   andar: null,
@@ -25,7 +25,7 @@ const VAZIA: EmpresaEntrada = {
   ativo: true,
 }
 
-function FormEmpresa({
+export function FormEmpresa({
   inicial,
   aoSalvar,
   aoCancelar,
@@ -100,8 +100,9 @@ function FormEmpresa({
   )
 }
 
-function Destinatarios({ empresa }: { empresa: Empresa }) {
+export function Destinatarios({ empresa }: { empresa: Empresa }) {
   const [lista, setLista] = useState<Destinatario[] | null>(null)
+  const [editando, setEditando] = useState<{ id: string; valor: string } | null>(null)
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [tipo, setTipo] = useState<'pessoa' | 'setor'>('pessoa')
@@ -135,6 +136,20 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
     }
   }
 
+  async function salvarTelefone(d: Destinatario) {
+    if (!editando) return
+    const tel = normalizarTelefone(editando.valor)
+    if (!tel) return setErro('Confira o WhatsApp: use DDD e o celular, por exemplo (13) 99999-0000.')
+    try {
+      const salvo = await dados.salvarDestinatario({ ...d, telefone: tel }, empresa.id)
+      setLista((l) => (l ?? []).map((x) => (x.id === salvo.id ? salvo : x)))
+      setEditando(null)
+      setErro(null)
+    } catch {
+      setErro('Não foi possível salvar o WhatsApp.')
+    }
+  }
+
   async function alternar(d: Destinatario) {
     try {
       const salvo = await dados.salvarDestinatario({ ...d, ativo: !d.ativo }, empresa.id)
@@ -154,22 +169,56 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
       {!!lista?.length && (
         <ul className="divide-y divide-line" data-testid="destinatarios">
           {lista.map((d) => (
-            <li key={d.id} className="flex items-center justify-between gap-3 py-3">
-              <span className="min-w-0">
-                <span className={`block truncate font-medium ${d.ativo ? '' : 'text-muted line-through'}`}>{d.nome}</span>
-                <span className="rotulo">
-                  {d.tipo === 'setor' ? 'Setor' : 'Pessoa'}
-                  {d.telefone ? <span className="num normal-case"> · WhatsApp {d.telefone}</span> : null}
+            <li key={d.id} className="space-y-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <span className={`block truncate font-medium ${d.ativo ? '' : 'text-muted line-through'}`}>{d.nome}</span>
+                  <span className="rotulo">
+                    {d.tipo === 'setor' ? 'Setor' : 'Pessoa'}
+                    {d.telefone ? <span className="num normal-case"> · WhatsApp {d.telefone}</span> : <span className="normal-case"> · sem WhatsApp</span>}
+                  </span>
                 </span>
-              </span>
-              <Botao variante="secundario" className="!min-h-11" onClick={() => alternar(d)}>
-                {d.ativo ? 'Desativar' : 'Reativar'}
-              </Botao>
+                <span className="flex shrink-0 gap-1">
+                  <Botao
+                    variante="fantasma"
+                    className="!min-h-11 !px-3"
+                    onClick={() => setEditando(editando?.id === d.id ? null : { id: d.id, valor: d.telefone ?? '' })}
+                    aria-label={`WhatsApp de ${d.nome}`}
+                  >
+                    WhatsApp
+                  </Botao>
+                  <Botao variante="secundario" className="!min-h-11" onClick={() => alternar(d)}>
+                    {d.ativo ? 'Desativar' : 'Reativar'}
+                  </Botao>
+                </span>
+              </div>
+              {editando?.id === d.id && (
+                <form
+                  className="flex flex-col gap-2 sm:flex-row"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void salvarTelefone(d)
+                  }}
+                >
+                  <input
+                    autoFocus
+                    className={`${campo} num`}
+                    value={editando.valor}
+                    onChange={(e) => setEditando({ id: d.id, valor: e.target.value })}
+                    inputMode="tel"
+                    placeholder="(13) 99999-0000"
+                    aria-label={`Novo WhatsApp de ${d.nome}`}
+                  />
+                  <Botao type="submit" className="shrink-0">
+                    Salvar
+                  </Botao>
+                </form>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <form onSubmit={adicionar} className="flex flex-col gap-3 border-t border-line pt-4 md:flex-row md:items-end">
+      <form onSubmit={adicionar} className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
         <Rotulo texto="Novo destinatário">
           <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome ou setor" aria-label="Novo destinatário" />
         </Rotulo>
@@ -183,7 +232,7 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
             aria-label="WhatsApp do novo destinatário"
           />
         </Rotulo>
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="group" aria-label="Tipo de destinatário">
           {(['pessoa', 'setor'] as const).map((t) => (
             <button
               key={t}
@@ -196,7 +245,7 @@ function Destinatarios({ empresa }: { empresa: Empresa }) {
             </button>
           ))}
         </div>
-        <Botao type="submit" disabled={nome.trim().length < 2}>
+        <Botao type="submit" className="sm:justify-self-end" disabled={nome.trim().length < 2}>
           <Plus className="size-5" strokeWidth={1.75} />
           Adicionar
         </Botao>
@@ -254,7 +303,7 @@ export function Cadastro({ predioId, aoVoltar }: { predioId: string; aoVoltar: (
         />
       ) : (
         <div className="space-y-4">
-          <Botao onClick={() => setEditando(VAZIA)}>
+          <Botao onClick={() => setEditando(EMPRESA_VAZIA)}>
             <Plus className="size-5" strokeWidth={1.75} />
             Nova empresa
           </Botao>
